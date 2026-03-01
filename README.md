@@ -31,6 +31,14 @@ medcompanion/
 
 ---
 
+### System Architecture
+
+![MedCompanion Architecture](https://raw.githubusercontent.com/bjmeo8/medvisit/main/docs/medvisit-architecture.png)
+
+MedCompanion is built around Mistral multimodal AI architecture combining audio transcription, image analysis, and longitudinal reasoning...
+
+---
+
 ## Prerequisites
 
 - Python **3.10+**
