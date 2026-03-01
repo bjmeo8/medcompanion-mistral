@@ -1,0 +1,162 @@
+MedCompanion – Project Specs
+========================================
+
+Overview
+--------
+MedCompanion is a responsive web application and installable PWA that helps patients log consultations, follow every prescription, and understand longitudinal risks. The UI is powered by TailwindCSS, runs as a single-page experience rendered by FastAPI/Jinja, and talks to a Mistral-backed API for medical reasoning.
+
+Key responsibilities:
+- Guide new patients through onboarding (profile, allergies, primary doctor) and persist their identity locally plus on disk per patient.
+- Capture visits (microphone upload or file), send audio + prescription photo + doctor info to Mistral, and surface the structured analysis everywhere.
+- Track daily adherence/symptoms with Mistral-updated treatment timelines and Safety & Alerts.
+- Verify medication boxes via Mistral vision by comparing user photos with prescriptions from active visits.
+
+Core User Goals
+---------------
+1. Quickly recall the important parts of every consultation (transcript, summary, specialist, prescription).
+2. Stay on track with complex, multi-visit treatment schedules and log daily adherence.
+3. Detect interactions or medication errors using longitudinal AI reasoning.
+4. Review the full visit archive and share structured reports if needed.
+
+Experience Architecture
+-----------------------
+### 1. Onboarding / Profile
+- Modal overlay collects name, weight, height, blood type, allergies, and primary doctor (patient ID auto-generated).
+- Data stored under `medvisitPatientProfile` in localStorage; settings modal lets patients update the same fields.
+- Profile section mirrors the saved details and shows allergy pills plus the primary doctor label.
+
+### 2. Overview (Home)
+- Header greeting uses the saved name; navigation is fixed for both desktop and mobile.
+- **Verify your medication** banner opens the scan modal where patients upload or take a box photo. Mistral compares it against prescription images from active visits and returns `match`, `message`, and recommended action.
+- **Medication & Symptom Check-in** runs sequential questions defined by Mistral. Answers are POSTed to the backend, which stores them per visit, calls Mistral for reasoning, and refreshes the UI with statuses and new alert copy. Repeat check-ins reuse day context so visits do not jump ahead.
+- **Your Treatment** shows the current day and surrounding days inside a scrollable panel. Cards display medication name, schedule, originating visit, and `Taken/Missed/Pending` badges. Clicking a card opens the medication modal (dosage, instructions, purpose). “View full schedule” modal lists every day in the plan (start date + day count per prescription) with the current day highlighted.
+- **Safety & Alerts** renders up to three cards (Emergency, Doctor advice, Helpful tip) sourced from the latest Mistral reasoning across all active visits.
+
+### 3. Capture (New Visit)
+- Idle state presents upload buttons plus a large record button.
+- Recording uses the browser MediaRecorder API; waveform bars animate via Web Audio analyser buckets. Timer runs live.
+- Stopping the recording or uploading audio leads to a review card where the user can attach prescription photos, type notes, and set the doctor for that visit (prefilled with their primary doctor but editable per consultation).
+- “Analyze visit” shells audio + prescription + notes + doctor to `/analyze`; Mistral returns transcription, summary, structured sections, treatment plan, and safety guidance. Results immediately populate the Overview and History tabs.
+
+### 4. History
+- Fetches `/analyses?search=...` for the current patient. Cards include doctor name, visit title, excerpt, and status badges (“In progress”, “Completed”).
+- Clicking opens a modal with the full summary, structured findings, tags, prescription preview, and audio controls. The audio player swaps play/pause buttons and pauses automatically when the modal closes.
+- Search filters by doctor, symptoms, or summary text.
+
+### 5. Profile Tab / Settings
+- Displays the stored biometric info, allergies, and doctor.
+- Settings modal mirrors the onboarding form. Updating the doctor also pre-fills the capture doctor input.
+
+### 6. PWA & Responsiveness
+- App includes `manifest.json`, dedicated icons generated from `medvisit-logo-hd.png` (192/512 sizes), and a service worker caching shell assets plus API fallbacks.
+- Mobile header (logo + notification pill) is fixed; safe-area padding and `pb-safe` keep bottom nav accessible on modern phones.
+
+Backend Architecture
+--------------------
+- **Stack**: FastAPI (main.py), mounted static + template directories, uvicorn entrypoint.
+- **Mistral**: `mistralai` SDK with `mistral-large-2512` for chat reasoning and `voxtral-mini-latest` for transcription. `_call_mistral_chat` drives visit/check-in/verification prompts, `_transcribe_audio_content` runs Voxtral Mini Transcribe.
+- **Data layout**: `DATA/<patient-slug>/visits/<visit-id>/`
+  * `analysis.json` – canonical record with audio/prescription URLs, summary, sections, doctor_name, etc.
+  * `state.json` – computed overview state containing treatment plan, safety alerts, symptom questions, current day index, and latest check-in summary.
+  * Uploaded media stored alongside JSON and exposed through `/data/...`.
+- **Patient routing**: `_resolve_patient_id` slugifies the ID, ensuring each patient has isolated storage. On analyze/check-in requests the frontend sends the patient’s generated ID.
+
+Endpoints
+---------
+- `GET /` – serves the SPA template with default patient ID (used when onboarding hasn’t run yet).
+- `POST /analyze` – fields: `audio_file`, optional `prescription_photo`, `notes`, `patient_id`, `patient_name`, `doctor_name`. Saves visit artifacts, calls Mistral, composes `analysis_record`, generates overview state, and returns both the raw Mistral analysis plus the updated overview snapshot.
+- `GET /analyses?patient_id=&search=` – lists visits sorted by date, attaches visit status (In progress vs Completed) derived from `state.json`.
+- `POST /checkin` (not shown in this excerpt but implemented) – accepts sequential answers, merges them into the visit state, calls Mistral for adherence reasoning, then responds with refreshed treatment plan and alerts.
+- `POST /verify-medication` – media endpoint that forwards the uploaded box photo and active prescription references to Mistral to validate packaging.
+- Static mounts: `/static` (icons, sw.js, manifest) and `/data` (patient visit files).
+
+AI Workflows (Mistral)
+---------------------
+1. **Visit Analysis**
+   - Voxtral Mini Transcribe converts the uploaded audio to text; the transcript, patient notes, and optional prescription images are sent to `mistral-large-2512`.
+   - Expected JSON response contains: transcription, bullet summary, treatment plan (`days[] -> medications[] with schedule, instructions, visit context`), safety alerts, and medication metadata.
+   - Backend persists the plan and uses it to render the treatment timeline + full schedule modal.
+
+2. **Daily Check-in**
+   - Frontend collects answers (medication intake, symptoms, side effects, wellbeing). Backend stores them next to the visit state and calls Mistral with the existing plan plus new answers.
+   - Mistral marks medications as Taken/Missed/Pending for the current day only and rewrites Safety & Alerts. The system never advances to the next day unless the real calendar date changes.
+
+3. **Medication Verification**
+   - When scanning, backend builds a prompt listing active prescriptions (names, dosage, packaging hints) and provides the uploaded photo. Mistral responds with `match` boolean, rationale, and patient-safe recommendation. UI shows a green “Match confirmed” or red “Mismatch detected” card based on the response.
+
+4. **History Summaries**
+   - Each analysis file stores Mistral’s sections (`chief_complaint`, `prescription_plan`, `flags`, etc.) which render in the History modal. Audio player references the stored `/data/...` URL.
+
+Frontend Implementation Notes
+-----------------------------
+- State: vanilla JS with DOM refs; patient profile cached in `patientProfile`, analyses in `analysesData`, overview data in `overviewData`.
+- Audio Recorder:
+  * Uses `MediaRecorder` with MIME negotiation (prefers `audio/webm;codecs=opus`).
+  * Web Audio API analyser drives 12 animated bars covering the entire spectrum for live feedback.
+  * Stops gracefully on modal close or navigation; releases tracks and contexts to avoid leaks.
+- Modals:
+  * `openModal` / `closeModal` handle animation classes and cleanup (pause audio, reset verification states, etc.).
+- Medication details:
+  * `medData` provides fallback info for common meds (Amoxicillin, Doliprane) while Mistral data gradually replaces it via `openPlanMedication`.
+- PWA hooks:
+  * `manifest.json` references the MedCompanion heart logo variations; service worker caches root shell, CSS, JS, and responds offline with cached HTML when possible.
+
+Patient Data Model
+------------------
+```json
+// Local storage
+{
+  "name": "Sophie Laurent",
+  "patient_id": "#MED-XYZ123",
+  "weight": "65",
+  "height": "1.68",
+  "blood": "A+",
+  "allergies": ["Penicillin", "Nuts"],
+  "doctor": "Dr. Elise Martin (Allergist)"
+}
+```
+
+```json
+// DATA/<patient>/visits/<id>/analysis.json
+{
+  "id": "visit-uuid",
+  "title": "Consultation • 25 Feb 2025",
+  "doctor_name": "Dr. Elise Martin",
+  "patient_id": "#MED-XYZ123",
+  "created_at": "...",
+  "notes": "Patient mentioned congestion",
+  "audio": { "url": "/data/.../visit-uuid.webm", "mime_type": "audio/webm" },
+  "prescription": { "url": "/data/.../visit-uuid.jpg" },
+  "transcription": "...",
+  "summary": "...",
+  "sections": [...],
+  "treatment_plan": [
+    {
+      "date": "2025-02-25",
+      "day_label": "Day 1",
+      "medications": [
+        { "name": "Cetirizine 10mg", "schedule": "Every evening", "status": "taken" },
+        { "name": "Nasal spray", "schedule": "3x/day", "status": "pending" }
+      ]
+    }
+  ]
+}
+```
+
+Outstanding Roadmap
+-------------------
+1. Broaden medication knowledge base so medication modal pulls real Mistral data for every entry.
+2. Harden `/checkin` prompt templates for multilingual responses and partial answers.
+3. Add automated tests (FastAPI + Playwright) for visit capture, check-in persistence, and medication verification regressions.
+4. Provide export/sharing (PDF/email) of visit summaries and treatment plans.
+5. Extend medication verification to support QR/GS1 barcode scans if available on packaging.
+
+Deliverables Checklist
+----------------------
+- [x] Functional Mistral-backed API for visit capture (`/analyze`).
+- [x] Persistent visit storage per patient with multi-visit timeline merging.
+- [x] Real-time audio recorder + spectrogram + upload pipeline.
+- [x] History view fed by backend search + modal with working audio controls.
+- [x] Medication verification flow tied to Mistral vision.
+- [x] Installable PWA (manifest, service worker, icons).
+- [ ] Automated regression suite for backend endpoints and core UI journeys.

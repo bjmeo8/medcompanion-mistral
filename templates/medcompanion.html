@@ -1,0 +1,2346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#f97316">
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+    <title>MedCompanion - Your Health Companion</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Tailwind Config -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#fff7ed',
+                            100: '#ffedd5',
+                            200: '#fed7aa',
+                            300: '#fdba74',
+                            400: '#fb923c', // Orange clair
+                            500: '#f97316', // Orange principal
+                            600: '#ea580c',
+                            700: '#c2410c',
+                        }
+                    },
+                    boxShadow: {
+                        'soft': '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
+                        'float': '0 10px 30px -5px rgba(249, 115, 22, 0.15)',
+                        'float-slate': '0 10px 30px -5px rgba(100, 116, 139, 0.15)',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        body {
+            background-color: #f8fafc;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .view-section {
+            display: none;
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+        .view-section.active { display: block; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Capture Spectrogram */
+        .spectrogram {
+            display: flex;
+            align-items: flex-end;
+            gap: 8px;
+            height: 90px;
+            width: 100%;
+        }
+        .spectro-bar {
+            flex: 1;
+            min-width: 6px;
+            max-width: 16px;
+            height: var(--bar-height, 50%);
+            border-radius: 999px;
+            background: linear-gradient(180deg, #f97316, #c2410c);
+            transition: height 0.12s ease, opacity 0.2s ease;
+            opacity: 0.85;
+        }
+
+        /* Modal Transitions */
+        .modal {
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.3s ease;
+        }
+        .modal.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .modal-content {
+            transform: translateY(100%);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .modal.active .modal-content {
+            transform: translateY(0);
+        }
+        
+        @media (min-width: 768px) {
+            .modal-content { transform: scale(0.95); opacity: 0; }
+            .modal.active .modal-content { transform: scale(1); opacity: 1; }
+        }
+
+        .cam-scan-line {
+            width: 100%; height: 2px; background: #fb923c;
+            box-shadow: 0 0 10px #fb923c; position: absolute;
+            animation: scan 2s infinite linear;
+        }
+        @keyframes scan {
+            0% { top: 10%; } 50% { top: 90%; } 100% { top: 10%; }
+        }
+    </style>
+</head>
+<body class="text-slate-800 antialiased selection:bg-brand-200 bg-slate-50 min-h-screen md:flex overflow-x-hidden">
+
+    <!-- Onboarding Overlay -->
+    <div id="onboarding-overlay" class="fixed inset-0 z-[200] bg-slate-900/80 backdrop-blur-xl flex items-start md:items-center justify-center p-4 md:p-6 overflow-y-auto hidden">
+        <div class="bg-white rounded-[32px] w-full max-w-lg shadow-2xl p-8 space-y-6 mt-10 md:mt-0">
+            <div class="text-center space-y-2">
+                <div class="w-16 h-16 rounded-2xl bg-brand-100 text-brand-600 flex items-center justify-center mx-auto text-2xl font-bold shadow-soft">MV</div>
+                <h2 class="text-2xl font-bold text-slate-900">Welcome to MedCompanion</h2>
+                <p class="text-sm text-slate-500">Please enter your information so MedCompanion can personalize your treatment journey.</p>
+            </div>
+            <form id="onboarding-form" class="space-y-4">
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Full name</label>
+                    <input id="onboard-name" type="text" class="mt-1 w-full bg-slate-50 border border-slate-200 rounded-2xl px-3 py-2 text-sm focus:border-brand-400 focus:ring-2 focus:ring-brand-200" required>
+                </div>
+                <div class="grid md:grid-cols-3 gap-3">
+                    <div>
+                        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Weight (kg)</label>
+                        <input id="onboard-weight" type="number" min="0" step="0.1" class="mt-1 w-full bg-slate-50 border border-slate-200 rounded-2xl px-3 py-2 text-sm focus:border-brand-400 focus:ring-2 focus:ring-brand-200" required>
+                    </div>
+                    <div>
+                        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Height (m)</label>
+                        <input id="onboard-height" type="number" min="0" step="0.01" class="mt-1 w-full bg-slate-50 border border-slate-200 rounded-2xl px-3 py-2 text-sm focus:border-brand-400 focus:ring-2 focus:ring-brand-200" required>
+                    </div>
+                    <div>
+                        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Blood type</label>
+                        <select id="onboard-blood" class="mt-1 w-full bg-slate-50 border border-slate-200 rounded-2xl px-3 py-2 text-sm focus:border-brand-400 focus:ring-2 focus:ring-brand-200" required>
+                            <option value="" disabled selected>Select</option>
+                            <option value="A+">A+</option>
+                            <option value="A-">A-</option>
+                            <option value="B+">B+</option>
+                            <option value="B-">B-</option>
+                            <option value="AB+">AB+</option>
+                            <option value="AB-">AB-</option>
+                            <option value="O+">O+</option>
+                            <option value="O-">O-</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Known allergies</label>
+                    <input id="onboard-allergies" type="text" class="mt-1 w-full bg-slate-50 border border-slate-200 rounded-2xl px-3 py-2 text-sm focus:border-brand-400 focus:ring-2 focus:ring-brand-200" placeholder="Penicillin, Nuts">
+                    <p class="text-[11px] text-slate-400 mt-1">Separate allergies with commas.</p>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Primary doctor</label>
+                    <input id="onboard-doctor" type="text" class="mt-1 w-full bg-slate-50 border border-slate-200 rounded-2xl px-3 py-2 text-sm focus:border-brand-400 focus:ring-2 focus:ring-brand-200" placeholder="Dr. Martin">
+                </div>
+                <button type="submit" class="w-full bg-gradient-to-r from-brand-500 to-brand-600 text-white font-semibold py-3 rounded-2xl shadow-float hover:opacity-95 transition">Create account</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- NAVIGATION (Sidebar PC / Bottom Bar Mobile) -->
+<nav class="fixed bottom-0 w-full bg-white border-t border-slate-100 z-50 md:fixed md:top-0 md:left-0 md:w-64 md:border-t-0 md:border-r md:h-screen md:flex md:flex-col shadow-[0_-10px_40px_rgba(0,0,0,0.03)] md:shadow-none pb-safe md:pb-0 transition-all">
+        <!-- Logo Desktop Only -->
+        <div class="hidden md:flex items-center gap-3 p-6 border-b border-slate-100">
+            <div class="w-10 h-10 rounded-xl bg-brand-500 text-white flex items-center justify-center shadow-float">
+                <i data-lucide="heart-pulse" class="w-6 h-6"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold text-slate-900 leading-tight">MedCompanion</h1>
+            </div>
+        </div>
+
+        <div class="flex justify-around md:flex-col md:justify-start items-center md:items-stretch px-2 py-3 md:p-4 md:gap-2 h-full">
+            <button onclick="switchTab('home')" class="nav-btn flex flex-col md:flex-row items-center md:items-center gap-1 md:gap-3 p-2 md:p-3 text-brand-500 md:bg-brand-50 md:rounded-xl transition-all w-16 md:w-full" data-target="home">
+                <i data-lucide="layout-dashboard" class="w-6 h-6 md:w-5 md:h-5"></i>
+                <span class="text-[10px] md:text-sm font-semibold">Overview</span>
+            </button>
+
+            <button onclick="switchTab('record')" class="nav-btn flex flex-col md:flex-row items-center md:items-center gap-1 md:gap-3 p-2 md:p-3 text-slate-400 hover:text-brand-500 hover:bg-slate-50 md:rounded-xl transition-all w-16 md:w-full" data-target="record">
+                <i data-lucide="mic" class="w-6 h-6 md:w-5 md:h-5"></i>
+                <span class="text-[10px] md:text-sm font-medium">Capture</span>
+            </button>
+            
+            <button onclick="switchTab('history')" class="nav-btn flex flex-col md:flex-row items-center md:items-center gap-1 md:gap-3 p-2 md:p-3 text-slate-400 hover:text-brand-500 hover:bg-slate-50 md:rounded-xl transition-all w-16 md:w-full" data-target="history">
+                <i data-lucide="folder-clock" class="w-6 h-6 md:w-5 md:h-5"></i>
+                <span class="text-[10px] md:text-sm font-medium">History</span>
+            </button>
+
+            <button onclick="switchTab('profile')" class="nav-btn flex flex-col md:flex-row items-center md:items-center gap-1 md:gap-3 p-2 md:p-3 text-slate-400 hover:text-brand-500 hover:bg-slate-50 md:rounded-xl transition-all w-16 md:w-full md:mt-auto" data-target="profile">
+                <i data-lucide="user" class="w-6 h-6 md:w-5 md:h-5"></i>
+                <span class="text-[10px] md:text-sm font-medium">Profile</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- MAIN CONTENT AREA -->
+    <div class="flex-1 flex flex-col min-h-screen overflow-x-hidden relative md:ml-64">
+        
+        <!-- Header Mobile (Hidden on Desktop) -->
+        <header class="md:hidden fixed top-0 left-0 right-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-100 px-5 py-4 flex justify-between items-center">
+            <div class="flex items-center gap-2">
+                <div class="w-10 h-10 rounded-xl bg-brand-500 text-white flex items-center justify-center shadow-float">
+                    <i data-lucide="heart-pulse" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold text-slate-900 leading-tight">MedCompanion</h1>
+                </div>
+            </div>
+            <button class="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 relative">
+                <i data-lucide="bell" class="w-5 h-5"></i>
+                <span class="absolute top-2 right-2 w-2.5 h-2.5 bg-rose-500 border-2 border-white rounded-full"></span>
+            </button>
+        </header>
+
+        <main class="flex-1 overflow-y-auto px-5 pt-24 md:pt-6 pb-24 md:pb-10 md:p-10 space-y-8" id="main-container">
+            
+            <!-- ============================== -->
+            <!-- VIEW: HOME (Overview)          -->
+            <!-- ============================== -->
+            <div id="view-home" class="view-section active space-y-8 max-w-4xl mx-auto">
+                
+                <section>
+                    <div class="flex justify-between items-end mb-5">
+                        <div>
+                            <h2 class="text-2xl font-bold text-slate-900 mb-1">Hello, <span id="overview-greeting-name">Sophie</span></h2>
+                            <p class="text-slate-500">Follow-up for today's appointment.</p>
+                        </div>
+                        <button class="hidden md:flex w-10 h-10 rounded-full bg-white shadow-soft items-center justify-center text-slate-600 relative">
+                            <i data-lucide="bell" class="w-5 h-5"></i>
+                            <span class="absolute top-2 right-2 w-2.5 h-2.5 bg-rose-500 border-2 border-white rounded-full"></span>
+                        </button>
+                    </div>
+
+                    <!-- Scan Action for current visit -->
+                    <div class="bg-slate-900 rounded-3xl p-5 md:p-6 text-white shadow-float-slate relative overflow-hidden flex items-center justify-between mb-8 cursor-pointer hover:scale-[1.02] transition-transform" onclick="openModal('modal-scan')">
+                        <div class="relative z-10 flex-1">
+                            <div class="flex items-center gap-2 text-brand-400 mb-1">
+                                <i data-lucide="shield-check" class="w-4 h-4"></i>
+                                <span class="text-sm font-semibold uppercase tracking-wider">Safety</span>
+                            </div>
+                            <h3 class="text-lg font-bold">Verify your medication</h3>
+                            <p class="text-sm text-slate-300 mt-1">Scan your boxes to confirm they match the prescription.</p>
+                        </div>
+                        <div class="w-14 h-14 bg-white/10 rounded-full flex items-center justify-center backdrop-blur-sm shrink-0">
+                            <i data-lucide="scan" class="w-7 h-7 text-white"></i>
+                        </div>
+                        <i data-lucide="camera" class="absolute -right-4 -bottom-4 w-32 h-32 text-white opacity-5 rotate-12"></i>
+                    </div>
+
+                    <!-- Intelligent Adherence Tracker -->
+                    <div class="bg-gradient-to-br from-brand-400 to-brand-500 rounded-3xl p-6 text-white shadow-float relative overflow-hidden space-y-6">
+                        <i data-lucide="pill" class="absolute -bottom-4 -right-4 w-32 h-32 opacity-10 rotate-12"></i>
+                        <div class="relative z-10 space-y-4">
+                            <div class="flex items-center gap-2 bg-white/20 w-max px-3 py-1 rounded-full backdrop-blur-sm">
+                                <i data-lucide="clock" class="w-4 h-4"></i>
+                                <span class="text-sm font-medium">Medication & symptom check-in</span>
+                            </div>
+                            <div id="checkin-question-block" class="rounded-3xl p-4 space-y-4 bg-white/10">
+                                <div class="space-y-4">
+                                    <p id="checkin-question-text" class="text-xl font-semibold text-white">Question</p>
+                                    <div id="checkin-options" class="flex flex-wrap gap-2"></div>
+                                </div>
+                                <p class="text-xs text-white/80">Answer each question to help MedCompanion update your treatment timeline and safety alerts.</p>
+                            </div>
+                            <div id="checkin-loading" class="bg-white/10 rounded-3xl p-6 flex flex-col items-center justify-center text-center space-y-3 hidden">
+                                <div class="w-14 h-14 border-4 border-white/40 border-t-white rounded-full animate-spin"></div>
+                                <p class="text-sm font-semibold">Analyzing your responses...</p>
+                                <p class="text-xs text-white/80">MedCompanion is syncing medication adherence and safety insights.</p>
+                            </div>
+                            <div id="checkin-complete" class="bg-white text-slate-800 rounded-3xl p-6 text-center space-y-3 hidden">
+                                <div class="w-12 h-12 rounded-full bg-brand-500/10 text-brand-600 flex items-center justify-center mx-auto">
+                                    <i data-lucide="check" class="w-6 h-6"></i>
+                                </div>
+                                <h4 class="text-lg font-semibold">Check-in complete</h4>
+                                <p class="text-sm text-slate-600">Medication timeline and Safety & Alerts have been refreshed.</p>
+                                <button onclick="resetCheckIn()" class="text-sm font-semibold text-brand-600 hover:text-brand-200 transition">Log another update</button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Treatment Timeline Visualizer -->
+                <section>
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-bold flex items-center gap-2 text-slate-800">
+                            <i data-lucide="calendar-days" class="w-5 h-5 text-brand-500"></i>
+                            Your Treatment
+                        </h3>
+                        <button id="treatment-planning-btn" onclick="openModal('modal-planning')" class="text-sm font-semibold text-brand-600 bg-brand-50 px-3 py-1.5 rounded-full hover:bg-brand-100 transition">
+                            View full schedule
+                        </button>
+                    </div>
+                    <div class="bg-white rounded-3xl p-5 shadow-soft border border-slate-50">
+                        <div id="treatment-empty-state" class="text-center text-sm text-slate-500 py-6 px-4">
+                            <p>Record your first visit so MedCompanion can build your personalized treatment roadmap.</p>
+                        </div>
+                        <div id="treatment-timeline-wrapper" class="relative border-l-2 border-slate-100 ml-3 space-y-6 hidden max-h-[420px] overflow-y-auto pr-3 hide-scrollbar">
+                            <div id="treatment-timeline-body" class="space-y-6"></div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Safety & Alerts -->
+                <section>
+                    <h3 class="text-lg font-bold flex items-center gap-2 text-slate-800 mb-4">
+                        <i data-lucide="shield-alert" class="w-5 h-5 text-brand-500"></i>
+                        Safety & Alerts
+                    </h3>
+                    <div id="safety-alerts-empty" class="bg-white border border-dashed border-slate-200 rounded-3xl p-5 text-center text-sm text-slate-500">
+                        <p>Complete a capture or a check-in to receive personalized alerts and tips.</p>
+                    </div>
+                    <div id="safety-alerts-list" class="space-y-3 hidden"></div>
+                </section>
+            </div>
+            <!-- ============================== -->
+            <!-- VIEW: RECORD (Capture)         -->
+            <!-- ============================== -->
+            <div id="view-record" class="view-section max-w-2xl mx-auto space-y-8">
+                <div class="text-center">
+                    <div class="w-16 h-16 bg-brand-50 text-brand-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-soft">
+                        <i data-lucide="mic" class="w-8 h-8"></i>
+                    </div>
+                    <h2 class="text-2xl font-bold text-slate-900">Audio Capture</h2>
+                    <p class="text-slate-500 mt-2">Record the consultation so MedCompanion can extract key insights automatically.</p>
+                </div>
+
+                <!-- Idle UI -->
+                <div id="record-ui-idle" class="bg-white rounded-3xl p-8 shadow-soft border border-slate-100 flex flex-col items-center text-center space-y-6">
+                    <button onclick="startRecording()" class="w-36 h-36 bg-gradient-to-br from-brand-400 to-brand-500 rounded-full text-white flex flex-col items-center justify-center gap-2 shadow-float hover:scale-105 active:scale-95 transition">
+                        <i data-lucide="mic" class="w-12 h-12"></i>
+                        <span class="uppercase tracking-[0.2em] text-xs font-semibold">Rec</span>
+                    </button>
+                    <div>
+                        <p class="font-semibold text-slate-900 text-lg">Ready to capture</p>
+                        <p class="text-slate-500 text-sm mt-1">Place your phone between you and the physician for best quality.</p>
+                    </div>
+                    <button onclick="triggerAudioUpload()" class="text-sm font-semibold text-brand-500 flex items-center gap-2 hover:text-brand-400 transition">
+                        <i data-lucide="upload" class="w-4 h-4"></i>
+                        Upload audio file
+                    </button>
+                </div>
+
+                <!-- Recording UI -->
+                <div id="record-ui-active" class="bg-slate-900 rounded-3xl p-8 text-white border border-slate-800 hidden">
+                    <div class="flex items-center justify-between mb-6">
+                        <p class="text-sm font-semibold text-slate-300 uppercase tracking-wider">Recording</p>
+                        <div class="flex items-center gap-2 font-mono">
+                            <span class="w-2 h-2 rounded-full bg-rose-400 animate-pulse"></span>
+                            <span id="record-timer">00:00</span>
+                        </div>
+                    </div>
+                        <div class="spectrogram mb-8">
+                            <div class="spectro-bar" style="--bar-height:30%"></div>
+                        <div class="spectro-bar" style="--bar-height:55%"></div>
+                        <div class="spectro-bar" style="--bar-height:70%"></div>
+                        <div class="spectro-bar" style="--bar-height:45%"></div>
+                        <div class="spectro-bar" style="--bar-height:85%"></div>
+                        <div class="spectro-bar" style="--bar-height:50%"></div>
+                        <div class="spectro-bar" style="--bar-height:78%"></div>
+                        <div class="spectro-bar" style="--bar-height:40%"></div>
+                        <div class="spectro-bar" style="--bar-height:65%"></div>
+                        <div class="spectro-bar" style="--bar-height:35%"></div>
+                        <div class="spectro-bar" style="--bar-height:72%"></div>
+                        <div class="spectro-bar" style="--bar-height:48%"></div>
+                    </div>
+                        <button onclick="stopRecording()" class="w-full bg-white text-slate-900 font-semibold py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-slate-100 active:scale-95 transition">
+                            <i data-lucide="square" class="w-5 h-5"></i>
+                            Stop
+                        </button>
+                    </div>
+
+                <!-- Review UI -->
+                <div id="record-ui-review" class="bg-white rounded-3xl p-8 shadow-soft border border-slate-100 hidden space-y-6">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center">
+                            <i data-lucide="audio-lines" class="w-6 h-6"></i>
+                        </div>
+                        <div>
+                            <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Consultation audio</p>
+                            <p id="review-audio-label" class="text-base font-semibold text-slate-900">Recording ready</p>
+                            <p id="review-audio-status" class="text-sm text-slate-500">Ready for analysis</p>
+                        </div>
+                        <button class="ml-auto text-brand-500 hover:text-brand-600 transition" onclick="triggerAudioUpload()">
+                            <i data-lucide="upload" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                    <div class="bg-slate-100 rounded-2xl p-4 flex items-center gap-4">
+                        <button id="audio-play-btn" onclick="toggleAudioPreview()" class="w-12 h-12 rounded-full bg-white text-brand-500 flex items-center justify-center shadow-sm hover:bg-brand-50 transition">
+                            <span id="audio-play-icon-play" class="inline-flex">
+                                <i data-lucide="play" class="w-5 h-5 ml-0.5"></i>
+                            </span>
+                            <span id="audio-play-icon-pause" class="inline-flex hidden">
+                                <i data-lucide="pause" class="w-5 h-5"></i>
+                            </span>
+                        </button>
+                        <div class="flex-1 w-full">
+                            <div class="h-1.5 bg-white/40 rounded-full overflow-hidden">
+                                <div id="audio-progress-bar" class="h-full bg-brand-500 rounded-full" style="width:0%"></div>
+                            </div>
+                            <div class="flex justify-between text-xs text-slate-500 mt-2">
+                                <span id="audio-progress-time">00:00</span>
+                                <span id="audio-duration">--:--</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-slate-50 rounded-2xl p-4 border border-dashed border-slate-200">
+                        <p class="text-sm font-semibold text-slate-800 mb-2 flex items-center gap-2">
+                            <i data-lucide="file-text" class="w-4 h-4 text-brand-500"></i>
+                            Add prescription
+                        </p>
+                        <p class="text-xs text-slate-500 mb-4">Upload a photo so Mistral can cross-reference medications.</p>
+                        <div class="border-2 border-dashed border-slate-300 rounded-2xl p-6 flex flex-col items-center justify-center gap-3 bg-white w-full">
+                            <img id="prescription-preview" class="w-full max-h-48 object-cover rounded-xl hidden" alt="Prescription preview">
+                            <i data-lucide="camera" class="w-8 h-8 text-slate-400" id="prescription-camera-icon"></i>
+                            <button onclick="triggerPhotoUpload()" class="text-sm font-semibold text-brand-500 hover:text-brand-400 transition">Add photo</button>
+                            <p id="prescription-status" class="text-xs text-slate-400">No photo added yet</p>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-2xl p-4 border border-slate-100 space-y-3">
+                        <p class="text-sm font-semibold text-slate-800 flex items-center gap-2">
+                            <i data-lucide="edit-3" class="w-4 h-4 text-brand-500"></i>
+                            Visit notes (optional)
+                        </p>
+                        <textarea id="capture-notes" class="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3 text-sm text-slate-600 focus:border-brand-300 focus:ring-2 focus:ring-brand-200 min-h-[90px] resize-y" placeholder="Add symptoms, reminders, or follow-up questions you want Mistral to consider."></textarea>
+                    </div>
+                    <div class="bg-white rounded-2xl p-4 border border-slate-100 space-y-3">
+                        <p class="text-sm font-semibold text-slate-800 flex items-center gap-2">
+                            <i data-lucide="stethoscope" class="w-4 h-4 text-brand-500"></i>
+                            Doctor or specialist
+                        </p>
+                        <input id="capture-doctor" type="text" class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-3 py-2 text-sm text-slate-600 focus:border-brand-300 focus:ring-2 focus:ring-brand-200" placeholder="e.g. Dr. Martin (Allergist)">
+                        <p class="text-xs text-slate-400">Default to your primary doctor but feel free to update per consultation.</p>
+                    </div>
+                    <div class="flex flex-col sm:flex-row gap-3">
+                        <button onclick="cancelReview()" class="flex-1 border border-slate-200 text-slate-700 font-semibold py-3 rounded-2xl hover:bg-slate-50 transition">Cancel</button>
+                        <button onclick="startAnalysis()" class="flex-1 bg-gradient-to-r from-brand-500 to-brand-600 text-white font-semibold py-3 rounded-2xl shadow-float hover:opacity-95 transition flex items-center justify-center gap-2">
+                            <i data-lucide="sparkles" class="w-5 h-5"></i>
+                            Analyze Visit
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Analyzing UI -->
+                <div id="record-ui-analyzing" class="bg-white rounded-3xl p-8 shadow-soft border border-slate-100 hidden text-center space-y-3">
+                    <div class="w-16 h-16 border-4 border-slate-100 border-t-brand-500 rounded-full animate-spin mx-auto"></div>
+                    <h3 class="text-xl font-bold text-slate-900">Analyzing</h3>
+                    <p class="text-slate-500 text-sm">Mistral analyzes the exchange to extract the important decisions.</p>
+                </div>
+
+                <div id="analysis-error" class="hidden text-sm text-rose-700 bg-rose-50 border border-rose-100 rounded-3xl p-4"></div>
+
+                <div id="analysis-results" class="hidden bg-white rounded-3xl p-8 shadow-soft border border-slate-100 space-y-4">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-xs font-semibold uppercase tracking-wider text-brand-500">Mistral summary</p>
+                            <h3 class="text-lg font-bold text-slate-900">Visit analysis</h3>
+                        </div>
+                        <span class="text-xs text-slate-400">Updated just now</span>
+                    </div>
+                    <p id="analysis-summary" class="text-sm text-slate-600"></p>
+                    <div id="analysis-results-body" class="space-y-3"></div>
+                </div>
+
+                <input type="file" id="audio-upload-input" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.webm" class="hidden" onchange="handleAudioUpload(event)">
+                <input type="file" id="prescription-upload-input" accept="image/*" class="hidden" onchange="handlePrescriptionUpload(event)">
+                <audio id="consultation-audio" class="hidden" preload="metadata"></audio>
+
+            </div>
+            <!-- ============================== -->
+            <!-- VIEW: HISTORY                  -->
+            <!-- ============================== -->
+            <div id="view-history" class="view-section max-w-4xl mx-auto space-y-6">
+                <div class="mb-6 space-y-3">
+                    <div>
+                        <h2 class="text-2xl font-bold text-slate-900">History</h2>
+                        <p class="text-slate-500">Browse every past consultation.</p>
+                    </div>
+                    <div class="relative">
+                        <i data-lucide="search" class="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2"></i>
+                        <input id="history-search" type="text" placeholder="Search by visit, doctor, symptom..." class="w-full bg-white border border-slate-200 rounded-2xl py-3 pl-12 pr-4 text-sm focus:outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-200 transition">
+                    </div>
+                </div>
+
+                <p id="history-empty" class="text-center text-slate-400 text-sm hidden">No analyses recorded yet. Capture a visit to get started.</p>
+                <div id="history-list" class="space-y-4"></div>
+            </div>
+
+            <!-- ============================== -->
+            <!-- VIEW: PROFILE                  -->
+            <!-- ============================== -->
+            <div id="view-profile" class="view-section max-w-4xl mx-auto space-y-6">
+                <div class="text-center mb-8">
+                    <div id="profile-initials" class="w-24 h-24 bg-brand-100 text-brand-600 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl font-bold shadow-soft border-4 border-white">
+                        --
+                    </div>
+                    <h2 id="profile-name" class="text-2xl font-bold text-slate-900">Patient name</h2>
+                    <p id="profile-id" class="text-slate-500">Patient ID: #MED-0000</p>
+                </div>
+
+                <div class="grid md:grid-cols-2 gap-4">
+                    <div class="bg-white rounded-3xl p-5 shadow-soft border border-slate-50">
+                        <h3 class="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                            <i data-lucide="clipboard-list" class="w-5 h-5 text-brand-500"></i> Medical file
+                        </h3>
+                        <ul class="space-y-3">
+                            <li class="flex justify-between border-b border-slate-50 pb-2">
+                                <span class="text-slate-500">Weight</span>
+                                <span id="profile-weight" class="font-semibold text-slate-800">-</span>
+                            </li>
+                            <li class="flex justify-between border-b border-slate-50 pb-2">
+                                <span class="text-slate-500">Height</span>
+                                <span id="profile-height" class="font-semibold text-slate-800">-</span>
+                            </li>
+                            <li class="flex justify-between">
+                                <span class="text-slate-500">Blood type</span>
+                                <span id="profile-blood" class="font-semibold text-slate-800">-</span>
+                            </li>
+                        </ul>
+                    </div>
+
+                <div class="bg-white rounded-3xl p-5 shadow-soft border border-slate-50">
+                    <h3 class="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        <i data-lucide="shield-alert" class="w-5 h-5 text-rose-500"></i> Known allergies
+                    </h3>
+                    <div id="profile-allergies" class="flex flex-wrap gap-2 text-sm text-slate-500">None recorded.</div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-3xl p-2 shadow-soft border border-slate-50 mt-6">
+                <div class="px-4 py-3 border-b border-slate-50">
+                    <p class="text-xs uppercase tracking-wider text-slate-400 font-semibold">Primary doctor</p>
+                    <p id="profile-doctor" class="text-sm font-semibold text-slate-800 mt-1">Not set yet</p>
+                </div>
+                <button onclick="openProfileSettings()" class="w-full text-left p-4 flex justify-between items-center hover:bg-slate-50 rounded-2xl transition">
+                    <span class="font-medium text-slate-800 flex items-center gap-3">
+                        <i data-lucide="settings" class="w-5 h-5 text-slate-400"></i> Settings
+                    </span>
+                    <i data-lucide="chevron-right" class="w-5 h-5 text-slate-400"></i>
+                    </button>
+                    <button class="w-full text-left p-4 flex justify-between items-center hover:bg-slate-50 rounded-2xl transition text-rose-600">
+                        <span class="font-medium flex items-center gap-3">
+                            <i data-lucide="log-out" class="w-5 h-5"></i> Log out
+                        </span>
+                    </button>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- ============================== -->
+    <!-- MODALS                         -->
+    <!-- ============================== -->
+
+    <!-- Modal: Scan Box -->
+    <div id="modal-scan" class="modal fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeModal('modal-scan')"></div>
+        <div class="modal-content bg-white w-full max-w-md rounded-[2rem] relative shadow-2xl flex flex-col p-6 space-y-5">
+            <div class="flex justify-between items-center">
+                <div>
+                    <p class="text-xs uppercase tracking-wider text-brand-500 font-semibold">Medication safety</p>
+                    <h3 class="text-xl font-bold text-slate-900">Verify your medication</h3>
+                </div>
+                <button onclick="closeModal('modal-scan')" class="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div id="verify-idle" class="space-y-4">
+                <div class="bg-slate-50 border border-dashed border-slate-300 rounded-3xl h-64 flex items-center justify-center relative overflow-hidden">
+                    <img id="verify-preview" class="hidden absolute inset-0 w-full h-full object-cover" alt="Medication preview">
+                    <div id="verify-placeholder" class="text-center text-slate-500 space-y-3 px-6">
+                        <div class="w-14 h-14 bg-white rounded-2xl flex items-center justify-center mx-auto text-brand-500 shadow-soft">
+                            <i data-lucide="pill" class="w-6 h-6"></i>
+                        </div>
+                        <p class="font-semibold">Add a photo of the box</p>
+                        <p class="text-sm">Use your camera or upload a picture of the medication packaging.</p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button onclick="triggerVerifyCapture(true)" class="w-full rounded-2xl border border-slate-200 py-3 font-semibold text-slate-700 hover:bg-slate-50 flex items-center justify-center gap-2">
+                        <i data-lucide="camera" class="w-4 h-4"></i>
+                        Take a photo
+                    </button>
+                    <button onclick="triggerVerifyCapture(false)" class="w-full rounded-2xl border border-slate-200 py-3 font-semibold text-slate-700 hover:bg-slate-50 flex items-center justify-center gap-2">
+                        <i data-lucide="upload" class="w-4 h-4"></i>
+                        Upload photo
+                    </button>
+                </div>
+                <p id="verify-error" class="text-sm text-rose-600 hidden"></p>
+                <button id="verify-submit-btn" onclick="submitMedicationVerification()" class="w-full bg-gradient-to-r from-brand-500 to-brand-600 text-white font-semibold py-3 rounded-2xl shadow-float disabled:opacity-40 disabled:cursor-not-allowed" disabled>
+                    Verify medication
+                </button>
+            </div>
+            <div id="verify-loading" class="hidden flex flex-col items-center justify-center text-center space-y-3 py-10">
+                <div class="w-14 h-14 border-4 border-slate-200 border-t-brand-500 rounded-full animate-spin"></div>
+                <p class="text-sm font-semibold">Analyzing with Mistral...</p>
+                <p class="text-xs text-slate-500">We compare your photo with active prescriptions.</p>
+            </div>
+            <div id="verify-result" class="hidden space-y-4">
+                <div id="verify-result-tag" class="text-xs font-semibold uppercase tracking-[0.2em] text-center rounded-full px-3 py-1 w-max mx-auto"></div>
+                <div class="text-center space-y-2">
+                    <h4 id="verify-result-title" class="text-lg font-bold text-slate-900"></h4>
+                    <p id="verify-result-message" class="text-sm text-slate-600"></p>
+                    <p id="verify-result-recommendation" class="text-sm text-slate-500"></p>
+                </div>
+                <div class="flex flex-col sm:flex-row gap-3">
+                    <button onclick="resetMedicationVerification(true)" class="flex-1 border border-slate-200 rounded-2xl py-3 font-semibold text-slate-700 hover:bg-slate-50">Scan another box</button>
+                    <button onclick="closeModal('modal-scan')" class="flex-1 bg-brand-500 text-white rounded-2xl py-3 font-semibold shadow-float">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <input type="file" id="verify-upload-input" accept="image/*" class="hidden">
+
+    <!-- Modal: Full Planning -->
+    <div id="modal-planning" class="modal fixed inset-0 z-[100] flex items-end md:items-center justify-center md:p-4">
+        <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onclick="closeModal('modal-planning')"></div>
+        <div class="modal-content bg-slate-50 w-full max-w-lg md:rounded-3xl rounded-t-3xl h-[85vh] md:h-auto md:max-h-[85vh] relative shadow-2xl flex flex-col">
+            <div class="p-6 bg-white border-b border-slate-100 rounded-t-3xl flex justify-between items-center sticky top-0 z-10">
+                <h3 class="font-bold text-xl text-slate-900">Full schedule</h3>
+                <button onclick="closeModal('modal-planning')" class="p-2 bg-slate-100 rounded-full text-slate-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="p-6 overflow-y-auto flex-1 space-y-6">
+                <div id="modal-planning-empty" class="text-sm text-slate-500 text-center bg-white border border-dashed border-slate-200 rounded-2xl p-6">
+                    <p>No treatment schedule available yet. Capture a visit to generate it.</p>
+                </div>
+                <div id="modal-planning-list" class="space-y-6 hidden"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Medication Details -->
+    <div id="modal-med-details" class="modal fixed inset-0 z-[110] flex items-end md:items-center justify-center md:p-4">
+        <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onclick="closeModal('modal-med-details')"></div>
+        <div class="modal-content bg-white w-full max-w-md md:rounded-3xl rounded-t-3xl relative shadow-2xl p-6">
+            <div class="flex justify-between items-start mb-6">
+                <div class="flex gap-4 items-center">
+                    <div class="w-14 h-14 bg-brand-100 text-brand-600 rounded-2xl flex items-center justify-center">
+                        <i data-lucide="pill" class="w-7 h-7"></i>
+                    </div>
+                    <div>
+                        <h3 id="med-title" class="font-bold text-xl text-slate-900">Medication</h3>
+                        <p id="med-subtitle" class="text-sm font-medium text-brand-600 bg-brand-50 px-2 py-0.5 rounded-md inline-block mt-1">Antibiotic</p>
+                    </div>
+                </div>
+                <button onclick="closeModal('modal-med-details')" class="p-2 bg-slate-50 hover:bg-slate-100 rounded-full text-slate-500">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            
+            <div class="space-y-4">
+                <div class="bg-slate-50 rounded-xl p-4">
+                    <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Dosage</p>
+                    <p id="med-dose" class="text-slate-800 font-medium">1 tablet morning and evening.</p>
+                </div>
+                <div class="bg-slate-50 rounded-xl p-4">
+                    <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">How to take it?</p>
+                    <p id="med-instructions" class="text-slate-800 font-medium">During a meal with a large glass of water.</p>
+                </div>
+                <div class="bg-blue-50 border border-blue-100 rounded-xl p-4 flex gap-3">
+                    <i data-lucide="info" class="w-5 h-5 text-blue-500 shrink-0"></i>
+                    <div>
+                        <p class="text-xs font-bold text-blue-800 uppercase tracking-wider mb-1">Why?</p>
+                        <p id="med-purpose" class="text-sm text-blue-900">Treats the bacterial infection causing your sore throat.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Profile Settings -->
+    <div id="modal-profile-settings" class="modal fixed inset-0 z-[130] flex items-end md:items-center justify-center md:p-4">
+        <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onclick="closeModal('modal-profile-settings')"></div>
+        <div class="modal-content bg-white w-full max-w-lg md:rounded-3xl rounded-t-3xl relative shadow-2xl p-6">
+            <div class="flex justify-between items-center mb-4">
+                <div>
+                    <p class="text-xs uppercase tracking-wider text-brand-500 font-semibold">Profile</p>
+                    <h3 class="text-xl font-bold text-slate-900">Update patient info</h3>
+                </div>
+                <button onclick="closeModal('modal-profile-settings')" class="p-2 bg-slate-100 rounded-full text-slate-500">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <form id="settings-form" class="space-y-4">
+                <div class="grid md:grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Full name</label>
+                        <input id="settings-name" type="text" class="mt-1 w-full bg-slate-50 border border-slate-200 rounded-2xl px-3 py-2 text-sm focus:border-brand-400 focus:ring-2 focus:ring-brand-200" required>
+                    </div>
+                    <div>
+                        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Patient ID</label>
+                        <input id="settings-id" type="text" class="mt-1 w-full bg-slate-50 border border-slate-200 rounded-2xl px-3 py-2 text-sm focus:border-brand-400 focus:ring-2 focus:ring-brand-200" required>
+                    </div>
+                </div>
+                <div class="grid md:grid-cols-3 gap-3">
+                    <div>
+                        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Weight (kg)</label>
+                        <input id="settings-weight" type="number" min="0" step="0.1" class="mt-1 w-full bg-slate-50 border border-slate-200 rounded-2xl px-3 py-2 text-sm focus:border-brand-400 focus:ring-2 focus:ring-brand-200" required>
+                    </div>
+                    <div>
+                        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Height (m)</label>
+                        <input id="settings-height" type="number" min="0" step="0.01" class="mt-1 w-full bg-slate-50 border border-slate-200 rounded-2xl px-3 py-2 text-sm focus:border-brand-400 focus:ring-2 focus:ring-brand-200" required>
+                    </div>
+                    <div>
+                        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Blood type</label>
+                        <select id="settings-blood" class="mt-1 w-full bg-slate-50 border border-slate-200 rounded-2xl px-3 py-2 text-sm focus:border-brand-400 focus:ring-2 focus:ring-brand-200" required>
+                            <option value="">Select</option>
+                            <option value="A+">A+</option>
+                            <option value="A-">A-</option>
+                            <option value="B+">B+</option>
+                            <option value="B-">B-</option>
+                            <option value="AB+">AB+</option>
+                            <option value="AB-">AB-</option>
+                            <option value="O+">O+</option>
+                            <option value="O-">O-</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Known allergies</label>
+                    <input id="settings-allergies" type="text" class="mt-1 w-full bg-slate-50 border border-slate-200 rounded-2xl px-3 py-2 text-sm focus:border-brand-400 focus:ring-2 focus:ring-brand-200" placeholder="Penicillin, Nuts">
+                    <p class="text-[11px] text-slate-400 mt-1">Separate allergies with commas.</p>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Primary doctor</label>
+                    <input id="settings-doctor" type="text" class="mt-1 w-full bg-slate-50 border border-slate-200 rounded-2xl px-3 py-2 text-sm focus:border-brand-400 focus:ring-2 focus:ring-brand-200">
+                </div>
+                <div class="flex gap-3">
+                    <button type="button" onclick="closeModal('modal-profile-settings')" class="flex-1 border border-slate-200 text-slate-700 font-semibold py-3 rounded-2xl hover:bg-slate-50 transition">Cancel</button>
+                    <button type="submit" class="flex-1 bg-brand-500 text-white font-semibold py-3 rounded-2xl shadow-float hover:opacity-95 transition">Save changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Analysis Detail -->
+    <div id="modal-analysis-detail" class="modal fixed inset-0 z-[120] flex items-end md:items-center justify-center md:p-4">
+        <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onclick="closeModal('modal-analysis-detail')"></div>
+        <div class="modal-content bg-white w-full max-w-2xl md:rounded-3xl rounded-t-3xl relative shadow-2xl p-6 space-y-6 overflow-y-auto max-h-[90vh]">
+            <div class="flex justify-between items-start">
+                <div>
+                    <p class="text-xs uppercase tracking-wider text-brand-500 font-semibold">Analysis detail</p>
+                    <h3 id="analysis-modal-title" class="text-2xl font-bold text-slate-900">Consultation</h3>
+                    <p id="analysis-modal-date" class="text-xs text-slate-400">--</p>
+                </div>
+                <button onclick="closeModal('modal-analysis-detail')" class="p-2 bg-slate-100 rounded-full text-slate-500 hover:text-slate-700">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="bg-slate-50 rounded-2xl p-4 grid gap-3 sm:grid-cols-2">
+                <div>
+                    <p class="text-xs uppercase tracking-wider text-slate-400 font-semibold">Doctor</p>
+                    <p id="analysis-modal-doctor" class="text-sm font-semibold text-slate-800">--</p>
+                </div>
+                <div>
+                    <p class="text-xs uppercase tracking-wider text-slate-400 font-semibold">Notes</p>
+                    <p id="analysis-modal-notes" class="text-sm text-slate-600 italic">No notes provided.</p>
+                </div>
+            </div>
+            <div class="space-y-4">
+                <h4 class="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                    <i data-lucide="audio-lines" class="w-4 h-4 text-brand-500"></i>
+                    Consultation audio
+                </h4>
+                <audio id="analysis-modal-audio" class="hidden"></audio>
+                <div id="analysis-modal-audio-player" class="bg-slate-100 rounded-2xl p-4 flex items-center gap-4 hidden">
+                    <button id="analysis-modal-audio-play-btn" class="w-12 h-12 rounded-full bg-white text-brand-500 flex items-center justify-center shadow-sm hover:bg-brand-50 transition" onclick="toggleModalAudioPreview()">
+                        <span id="analysis-modal-play-icon" class="inline-flex">
+                            <i data-lucide="play" class="w-5 h-5 ml-0.5"></i>
+                        </span>
+                        <span id="analysis-modal-pause-icon" class="inline-flex hidden">
+                            <i data-lucide="pause" class="w-5 h-5"></i>
+                        </span>
+                    </button>
+                    <div class="flex-1">
+                        <div class="h-1.5 bg-white/40 rounded-full overflow-hidden">
+                            <div id="analysis-modal-progress-bar" class="h-full bg-brand-500 rounded-full" style="width:0%"></div>
+                        </div>
+                        <div class="flex justify-between text-xs text-slate-500 mt-2">
+                            <span id="analysis-modal-progress-time">00:00</span>
+                            <span id="analysis-modal-duration">--:--</span>
+                        </div>
+                    </div>
+                </div>
+                <p id="analysis-modal-audio-missing" class="text-xs text-slate-400 hidden">Audio unavailable.</p>
+            </div>
+            <div id="analysis-modal-prescription-block" class="space-y-3 hidden">
+                <h4 class="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                    <i data-lucide="file-text" class="w-4 h-4 text-brand-500"></i>
+                    Prescription photo
+                </h4>
+                <img id="analysis-modal-prescription" class="w-full rounded-2xl border border-slate-100" alt="Prescription photo">
+            </div>
+            <div class="space-y-3">
+                <h4 class="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                    <i data-lucide="sparkles" class="w-4 h-4 text-brand-500"></i>
+                    Summary
+                </h4>
+                <p id="analysis-modal-summary" class="text-sm text-slate-600 leading-relaxed"></p>
+            </div>
+            <div id="analysis-modal-accordions" class="space-y-3"></div>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        // Safe area adjustments for mobile
+        document.documentElement.style.setProperty('--sat', 'env(safe-area-inset-top)');
+        document.documentElement.style.setProperty('--sab', 'env(safe-area-inset-bottom)');
+
+        // Tab Switching Logic
+        function switchTab(tabId) {
+            document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+            document.getElementById('view-' + tabId).classList.add('active');
+
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                const icon = btn.querySelector('i');
+                const text = btn.querySelector('span');
+                
+                if(btn.dataset.target === tabId) {
+                    btn.classList.add('text-brand-500');
+                    btn.classList.remove('text-slate-400');
+                    // Desktop styles
+                    btn.classList.add('md:bg-brand-50');
+                    btn.classList.remove('hover:bg-slate-50');
+                    text.classList.add('font-semibold');
+                    text.classList.remove('font-medium');
+                } else if(btn.dataset.target) {
+                    btn.classList.remove('text-brand-500');
+                    btn.classList.add('text-slate-400');
+                    // Desktop styles
+                    btn.classList.remove('md:bg-brand-50');
+                    btn.classList.add('hover:bg-slate-50');
+                    text.classList.remove('font-semibold');
+                    text.classList.add('font-medium');
+                }
+            });
+            window.scrollTo(0,0);
+        }
+
+        // Check-in / Symptom Tracking
+        let checkInQuestions = [];
+        let currentCheckInIndex = 0;
+        let checkInAnswers = [];
+        const questionBlock = document.getElementById('checkin-question-block');
+        const questionText = document.getElementById('checkin-question-text');
+        const optionsContainer = document.getElementById('checkin-options');
+        const loadingBlock = document.getElementById('checkin-loading');
+        const completeBlock = document.getElementById('checkin-complete');
+        const audioProgressBar = document.getElementById('audio-progress-bar');
+        const audioProgressTime = document.getElementById('audio-progress-time');
+        const audioDurationLabel = document.getElementById('audio-duration');
+        const audioPlayIconPlay = document.getElementById('audio-play-icon-play');
+        const audioPlayIconPause = document.getElementById('audio-play-icon-pause');
+        const audioElement = document.getElementById('consultation-audio');
+        const prescriptionPreview = document.getElementById('prescription-preview');
+        const prescriptionStatus = document.getElementById('prescription-status');
+        const prescriptionCameraIcon = document.getElementById('prescription-camera-icon');
+        const analysisResultsContainer = document.getElementById('analysis-results');
+        const analysisResultsBody = document.getElementById('analysis-results-body');
+        const analysisSummary = document.getElementById('analysis-summary');
+        const analysisError = document.getElementById('analysis-error');
+        const notesInput = document.getElementById('capture-notes');
+        const captureDoctorInput = document.getElementById('capture-doctor');
+        let audioObjectURL = '';
+        let mediaRecorder;
+        let mediaStream;
+        let recordedChunks = [];
+        let prescriptionPreviewURL = '';
+        let audioContextInstance = null;
+        let spectroAnalyser = null;
+        let spectroSourceNode = null;
+        let spectroAnimationFrame = null;
+        let spectroHistory = [];
+        let recordingMimeType = 'audio/webm';
+        const PROFILE_STORAGE_KEY = 'medCompanionPatientProfile';
+        let patientProfile = null;
+        let captureDoctorEdited = false;
+        const onboardingOverlay = document.getElementById('onboarding-overlay');
+        const onboardingForm = document.getElementById('onboarding-form');
+        const settingsForm = document.getElementById('settings-form');
+        const profileNameEl = document.getElementById('profile-name');
+        const overviewGreetingNameEl = document.getElementById('overview-greeting-name');
+        const profileIdEl = document.getElementById('profile-id');
+        const profileInitialsEl = document.getElementById('profile-initials');
+        const profileWeightEl = document.getElementById('profile-weight');
+        const profileHeightEl = document.getElementById('profile-height');
+        const profileBloodEl = document.getElementById('profile-blood');
+        const profileDoctorEl = document.getElementById('profile-doctor');
+        const profileAllergiesEl = document.getElementById('profile-allergies');
+        let analysesData = [];
+        const historyListEl = document.getElementById('history-list');
+        const historyEmptyEl = document.getElementById('history-empty');
+        const historySearchInput = document.getElementById('history-search');
+        const modalAudioElement = document.getElementById('analysis-modal-audio');
+        const modalAudioPlayer = document.getElementById('analysis-modal-audio-player');
+        const modalAudioPlayIcon = document.getElementById('analysis-modal-play-icon');
+        const modalAudioPauseIcon = document.getElementById('analysis-modal-pause-icon');
+        const modalAudioProgressBar = document.getElementById('analysis-modal-progress-bar');
+        const modalAudioProgressTime = document.getElementById('analysis-modal-progress-time');
+        const modalAudioDuration = document.getElementById('analysis-modal-duration');
+        const spectroBars = document.querySelectorAll('.spectro-bar');
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        const DEFAULT_PATIENT_ID = "{{ default_patient_id }}";
+        const treatmentTimelineBody = document.getElementById('treatment-timeline-body');
+        const treatmentTimelineWrapper = document.getElementById('treatment-timeline-wrapper');
+        const treatmentEmptyState = document.getElementById('treatment-empty-state');
+        const safetyAlertsList = document.getElementById('safety-alerts-list');
+        const safetyAlertsEmpty = document.getElementById('safety-alerts-empty');
+        const planningModalList = document.getElementById('modal-planning-list');
+        const planningModalEmpty = document.getElementById('modal-planning-empty');
+        const treatmentPlanningBtn = document.getElementById('treatment-planning-btn');
+        const verifyUploadInput = document.getElementById('verify-upload-input');
+        const verifyPreview = document.getElementById('verify-preview');
+        const verifyPlaceholder = document.getElementById('verify-placeholder');
+        const verifySubmitBtn = document.getElementById('verify-submit-btn');
+        const verifyError = document.getElementById('verify-error');
+        const verifyIdle = document.getElementById('verify-idle');
+        const verifyLoading = document.getElementById('verify-loading');
+        const verifyResult = document.getElementById('verify-result');
+        const verifyResultTag = document.getElementById('verify-result-tag');
+        const verifyResultTitle = document.getElementById('verify-result-title');
+        const verifyResultMessage = document.getElementById('verify-result-message');
+        const verifyResultRecommendation = document.getElementById('verify-result-recommendation');
+        const verifyResultTagBase = 'text-xs font-semibold uppercase tracking-[0.2em] text-center rounded-full px-3 py-1 w-max mx-auto';
+        let overviewData = null;
+        let currentTreatmentPlan = [];
+        let focusDayIndex = 0;
+        let currentAudioFile = null;
+        let currentPrescriptionFile = null;
+        let currentVerificationFile = null;
+        let verificationPreviewURL = '';
+
+        function formatPlanDate(dateString) {
+            if(!dateString) return '';
+            const date = new Date(dateString);
+            if(Number.isNaN(date.getTime())) return dateString;
+            return date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+        }
+
+        function layoutClasses(type) {
+            if(type === 'grid') return 'grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm w-full';
+            if(type === 'chips') return 'flex flex-wrap gap-2 text-sm w-full';
+            return 'flex flex-col sm:flex-row gap-3 w-full';
+        }
+
+        function updateCheckInQuestions(list, shouldRender = false) {
+            checkInQuestions = Array.isArray(list) ? list : [];
+            currentCheckInIndex = 0;
+            checkInAnswers = [];
+            if(shouldRender) {
+                renderCheckInQuestion();
+            }
+        }
+
+        function statusStyles(status) {
+            const key = (status || 'pending').toLowerCase();
+            const map = {
+                taken: { label: 'Taken', classes: 'text-green-600 bg-green-100' },
+                missed: { label: 'Missed', classes: 'text-rose-600 bg-rose-100' },
+                pending: { label: 'Pending', classes: 'text-amber-600 bg-amber-100' }
+            };
+            return map[key] || map.pending;
+        }
+
+        function renderMedicationCard(med, dayIndex, medIndex, isFocusDay) {
+            const detail = med.status_detail || med.notes || '';
+            const badge = statusStyles(med.status);
+            const dimClasses = isFocusDay ? '' : 'opacity-80 hover:opacity-100';
+            const visitLabel = med.visit_title ? `<p class="text-xs text-slate-400">${escapeHtml(med.visit_title)}</p>` : '';
+            return `
+                <button type="button" class="bg-slate-50 rounded-xl p-3 flex justify-between items-center border border-slate-100 hover:border-brand-300 transition w-full text-left ${dimClasses}" onclick="openPlanMedication(${dayIndex}, ${medIndex})">
+                    <div class="flex items-center gap-3">
+                        <div class="bg-brand-100 text-brand-600 p-2 rounded-lg">
+                            <i data-lucide="pill" class="w-4 h-4"></i>
+                        </div>
+                        <div>
+                            <p class="font-semibold text-sm">${escapeHtml(med.name || 'Medication')}</p>
+                            <p class="text-xs text-slate-500">${escapeHtml(med.schedule || 'As prescribed')}</p>
+                            ${visitLabel}
+                            ${detail ? `<p class="text-xs text-slate-400 mt-1">${escapeHtml(detail)}</p>` : ''}
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-semibold px-2 py-1 rounded-md ${badge.classes}">${badge.label}</span>
+                        <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400"></i>
+                    </div>
+                </button>
+            `;
+        }
+
+        function renderTreatmentTimeline(plan = []) {
+            if(!treatmentTimelineBody) return;
+            currentTreatmentPlan = Array.isArray(plan) ? plan : [];
+            const storedIndex = overviewData?.overview?.current_day_index;
+            focusDayIndex = Number.isInteger(storedIndex) ? storedIndex : 0;
+            if(currentTreatmentPlan.length) {
+                focusDayIndex = Math.max(0, Math.min(focusDayIndex, currentTreatmentPlan.length - 1));
+            } else {
+                focusDayIndex = 0;
+            }
+            treatmentTimelineBody.innerHTML = '';
+            if(!currentTreatmentPlan.length) {
+                treatmentTimelineWrapper?.classList.add('hidden');
+                treatmentEmptyState?.classList.remove('hidden');
+                planningModalList?.classList.add('hidden');
+                planningModalEmpty?.classList.remove('hidden');
+                treatmentPlanningBtn?.classList.add('opacity-50', 'pointer-events-none');
+                return;
+            }
+            treatmentPlanningBtn?.classList.remove('opacity-50', 'pointer-events-none');
+            treatmentEmptyState?.classList.add('hidden');
+            treatmentTimelineWrapper?.classList.remove('hidden');
+            planningModalEmpty?.classList.add('hidden');
+
+            const displayDays = [];
+            if(currentTreatmentPlan[focusDayIndex]) displayDays.push({ day: currentTreatmentPlan[focusDayIndex], index: focusDayIndex });
+            if(currentTreatmentPlan[focusDayIndex + 1]) displayDays.push({ day: currentTreatmentPlan[focusDayIndex + 1], index: focusDayIndex + 1 });
+
+            displayDays.forEach(({ day, index }) => {
+                const isFocusDay = index === focusDayIndex;
+                const dotColor = isFocusDay ? 'bg-brand-500' : 'bg-slate-300';
+                const meds = (day.medications || []).map((med, medIndex) => renderMedicationCard(med, index, medIndex, isFocusDay)).join('');
+                const dateText = day.day_date ? formatPlanDate(day.day_date) : '';
+                const dateMarkup = dateText ? `<p class="text-xs ${isFocusDay ? 'text-brand-500' : 'text-slate-400'} mt-1">${escapeHtml(dateText)}</p>` : '';
+                const block = document.createElement('div');
+                block.className = 'relative pl-6';
+                const dayNumber = day.day_number || (index + 1);
+                const subtitle = `<span class="text-sm font-normal text-slate-400 ml-2">${escapeHtml(day.day_subtitle || `Day ${dayNumber}`)}</span>`;
+                const label = index === focusDayIndex
+                    ? 'Today'
+                    : index === focusDayIndex + 1
+                        ? 'Tomorrow'
+                        : escapeHtml(day.day_label || `Day ${dayNumber}`);
+                block.innerHTML = `
+                    <div class="absolute -left-[9px] top-1 w-4 h-4 rounded-full ${dotColor} border-4 border-white"></div>
+                    <h4 class="font-bold ${isFocusDay ? 'text-slate-900' : 'text-slate-500'}">${label} ${subtitle}</h4>
+                    ${dateMarkup}
+                    <div class="mt-3 space-y-2">${meds || '<p class="text-xs text-slate-400">No medication scheduled.</p>'}</div>
+                `;
+                treatmentTimelineBody.appendChild(block);
+            });
+            lucide.createIcons();
+        }
+
+        function renderPlanningModal(plan = currentTreatmentPlan) {
+            if(!planningModalList) return;
+            planningModalList.innerHTML = '';
+            if(!Array.isArray(plan) || !plan.length) {
+                planningModalList.classList.add('hidden');
+                planningModalEmpty?.classList.remove('hidden');
+                return;
+            }
+            planningModalEmpty?.classList.add('hidden');
+            planningModalList.classList.remove('hidden');
+            plan.forEach((day, index) => {
+                const isFocusDay = index === focusDayIndex;
+                const dotColor = isFocusDay ? 'bg-brand-500' : 'bg-slate-300';
+                const meds = (day.medications || []).map((med, medIndex) => renderMedicationCard(med, index, medIndex, isFocusDay)).join('');
+                const dateText = day.day_date ? formatPlanDate(day.day_date) : '';
+                const dateMarkup = dateText ? `<p class="text-xs ${isFocusDay ? 'text-brand-500' : 'text-slate-400'}">${escapeHtml(dateText)}</p>` : '';
+                const section = document.createElement('div');
+                section.className = 'relative pl-6 pb-6';
+                section.innerHTML = `
+                    <div class="absolute -left-[9px] top-1 w-4 h-4 rounded-full ${dotColor} border-4 border-white"></div>
+                    <div class="bg-white rounded-2xl p-4 border ${isFocusDay ? 'border-brand-100 shadow-soft' : 'border-slate-100'}">
+                        <p class="text-xs uppercase tracking-wider ${isFocusDay ? 'text-brand-500' : 'text-slate-400'}">${escapeHtml(day.day_label || 'Schedule')}</p>
+                        ${day.day_subtitle ? `<h4 class="font-bold text-slate-900">${escapeHtml(day.day_subtitle)}</h4>` : ''}
+                        ${dateMarkup}
+                        <div class="mt-3 space-y-2">${meds}</div>
+                    </div>
+                `;
+                planningModalList.appendChild(section);
+            });
+            lucide.createIcons();
+        }
+
+        function alertStyles(category) {
+            const key = (category || 'tip').toLowerCase();
+            const styles = {
+                emergency: {
+                    wrapper: 'bg-rose-50 border border-rose-100',
+                    iconBg: 'bg-white',
+                    iconColor: 'text-rose-500',
+                    titleColor: 'text-rose-700',
+                    textColor: 'text-rose-600',
+                    icon: 'alert-triangle'
+                },
+                doctor: {
+                    wrapper: 'bg-amber-50 border border-amber-100',
+                    iconBg: 'bg-white',
+                    iconColor: 'text-amber-600',
+                    titleColor: 'text-amber-700',
+                    textColor: 'text-amber-700',
+                    icon: 'stethoscope'
+                },
+                tip: {
+                    wrapper: 'bg-white border border-slate-100',
+                    iconBg: 'bg-slate-100',
+                    iconColor: 'text-slate-500',
+                    titleColor: 'text-slate-800',
+                    textColor: 'text-slate-600',
+                    icon: 'info'
+                }
+            };
+            return styles[key] || styles.tip;
+        }
+
+        function renderSafetyAlerts(alerts = []) {
+            if(!safetyAlertsList) return;
+            safetyAlertsList.innerHTML = '';
+            if(!alerts.length) {
+                safetyAlertsList.classList.add('hidden');
+                safetyAlertsEmpty?.classList.remove('hidden');
+                return;
+            }
+            safetyAlertsEmpty?.classList.add('hidden');
+            safetyAlertsList.classList.remove('hidden');
+            alerts.slice(0, 3).forEach(alert => {
+                const styles = alertStyles(alert.category);
+                const card = document.createElement('div');
+                card.className = `${styles.wrapper} rounded-3xl p-4 flex gap-4`;
+                card.innerHTML = `
+                    <div class="w-10 h-10 rounded-2xl ${styles.iconBg} flex items-center justify-center ${styles.iconColor} shrink-0">
+                        <i data-lucide="${alert.icon || styles.icon}" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <p class="font-semibold ${styles.titleColor}">${escapeHtml(alert.title || 'Alert')}</p>
+                        <p class="text-sm ${styles.textColor}">${escapeHtml(alert.description || '')}</p>
+                    </div>
+                `;
+                safetyAlertsList.appendChild(card);
+            });
+            lucide.createIcons();
+        }
+
+        function renderCheckInQuestion() {
+            questionBlock.classList.remove('hidden');
+            loadingBlock.classList.add('hidden');
+            completeBlock.classList.add('hidden');
+            const hasPlan = currentTreatmentPlan.length > 0;
+            if(!checkInQuestions.length) {
+                questionText.innerText = hasPlan ? 'All treatments logged for today.' : 'Record a visit to unlock daily check-ins.';
+                optionsContainer.className = 'w-full text-sm text-white/80';
+                optionsContainer.innerHTML = hasPlan
+                    ? '<div class="bg-white/10 rounded-2xl px-4 py-3 border border-white/20">We will prompt you again as soon as MedCompanion detects a new medication or symptom to review.</div>'
+                    : '<div class="bg-white/10 rounded-2xl px-4 py-3 border border-white/20">MedCompanion will generate personalized medication and symptom questions once your first capture is analyzed.</div>';
+                return;
+            }
+            if(currentCheckInIndex >= checkInQuestions.length) {
+                currentCheckInIndex = 0;
+            }
+            const question = checkInQuestions[currentCheckInIndex];
+            questionText.innerText = question.prompt;
+            optionsContainer.innerHTML = '';
+            const options = question.options && question.options.length ? question.options : ['Yes', 'No'];
+            optionsContainer.className = layoutClasses(question.layout);
+            options.forEach(option => {
+                const btn = document.createElement('button');
+                if(question.layout === 'chips') {
+                    btn.className = 'border border-white/70 text-slate-700 rounded-full py-2 px-4 text-sm text-left bg-white hover:border-brand-200 transition w-full sm:w-auto';
+                } else if(question.layout === 'grid') {
+                    btn.className = 'border border-white/70 text-slate-700 rounded-xl py-2 px-3 text-sm text-left bg-white hover:border-brand-200 transition w-full';
+                } else {
+                    btn.className = 'flex-1 bg-white text-brand-500 font-semibold py-3 rounded-2xl shadow-sm hover:bg-brand-50 transition active:scale-95 w-full sm:w-auto';
+                }
+                btn.innerText = option;
+                btn.onclick = () => handleCheckInAnswer(option);
+                optionsContainer.appendChild(btn);
+            });
+        }
+
+        function handleCheckInAnswer(answer) {
+            const question = checkInQuestions[currentCheckInIndex];
+            checkInAnswers.push({
+                id: question.id,
+                type: question.type || 'symptom',
+                visit_id: question.visit_id || null,
+                medication_id: question.medication_id || null,
+                day_index: typeof question.day_index === 'number' ? question.day_index : null,
+                question: question.prompt,
+                answer
+            });
+            currentCheckInIndex++;
+            if(currentCheckInIndex < checkInQuestions.length) {
+                renderCheckInQuestion();
+            } else {
+                startCheckInAnalysis();
+            }
+        }
+
+        async function startCheckInAnalysis() {
+            if(!checkInAnswers.length) {
+                alert('Please answer the pending questions before submitting.');
+                return;
+            }
+            questionBlock.classList.add('hidden');
+            loadingBlock.classList.remove('hidden');
+            try {
+                const response = await fetch('/checkin', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ answers: checkInAnswers, patient_id: getPatientId() })
+                });
+                const payload = await response.json();
+                if(!response.ok) {
+                    throw new Error(payload.detail || 'Unable to log your check-in.');
+                }
+                overviewData = payload;
+                const plan = payload?.overview?.plan || [];
+                renderTreatmentTimeline(plan);
+                renderPlanningModal(plan);
+                renderSafetyAlerts(payload?.overview?.safety_alerts || []);
+                updateCheckInQuestions(payload?.checkin_questions || [], false);
+                loadingBlock.classList.add('hidden');
+                completeBlock.classList.remove('hidden');
+                currentCheckInIndex = 0;
+                checkInAnswers = [];
+            } catch (error) {
+                console.error('Check-in failed', error);
+                loadingBlock.classList.add('hidden');
+                questionBlock.classList.remove('hidden');
+                currentCheckInIndex = 0;
+                checkInAnswers = [];
+                renderCheckInQuestion();
+                alert(error.message || 'Unable to log your check-in. Please try again.');
+            }
+        }
+
+        function resetCheckIn() {
+            currentCheckInIndex = 0;
+            checkInAnswers = [];
+            completeBlock.classList.add('hidden');
+            loadingBlock.classList.add('hidden');
+            questionBlock.classList.remove('hidden');
+            renderCheckInQuestion();
+        }
+        renderCheckInQuestion();
+
+        if(historySearchInput) {
+            historySearchInput.addEventListener('input', (event) => {
+                const query = event.target.value.trim().toLowerCase();
+                if(!query) {
+                    renderHistoryCards(analysesData);
+                    return;
+                }
+                const filtered = analysesData.filter(record => {
+                    const haystack = [
+                        record.summary || '',
+                        record.transcription || '',
+                        record.notes || '',
+                        record.doctor_name || '',
+                        record.title || '',
+                        ...(record.sections || []).flatMap(section => section.items || [])
+                    ].join(' ').toLowerCase();
+                    return haystack.includes(query);
+                });
+                renderHistoryCards(filtered);
+            });
+        }
+
+        function clearAnalysisResults() {
+            if(analysisResultsBody) {
+                analysisResultsBody.innerHTML = '';
+            }
+            if(analysisSummary) {
+                analysisSummary.innerText = '';
+            }
+            if(analysisResultsContainer) {
+                analysisResultsContainer.classList.add('hidden');
+            }
+        }
+
+        function toggleAudioPreview() {
+            if(!audioElement.src) {
+                alert('Record or upload audio first.');
+                return;
+            }
+            if(audioElement.paused) {
+                audioElement.play().catch(err => {
+                    console.error('Audio playback failed', err);
+                    alert('Unable to play audio. Please try again.');
+                });
+            } else {
+                audioElement.pause();
+            }
+        }
+
+        function updateAudioProgressUI() {
+            let duration = audioElement.duration;
+            if(!isFinite(duration)) duration = 0;
+            let current = audioElement.currentTime || 0;
+            if(!audioElement.src) {
+                duration = 0;
+                current = 0;
+            }
+            const percent = duration ? (current / duration) * 100 : 0;
+            audioProgressBar.style.width = `${Math.min(percent, 100)}%`;
+            audioProgressTime.innerText = formatTime(current);
+            audioDurationLabel.innerText = duration ? formatTime(duration) : '--:--';
+        }
+        updateAudioProgressUI();
+
+        function formatTime(value) {
+            const total = Math.floor(value || 0);
+            const minutes = Math.floor(total / 60).toString().padStart(2, '0');
+            const seconds = (total % 60).toString().padStart(2, '0');
+            return `${minutes}:${seconds}`;
+        }
+
+        function stopAudioPreview(resetPosition) {
+            if(audioElement.src) {
+                audioElement.pause();
+                if(resetPosition) {
+                    audioElement.currentTime = 0;
+                }
+            } else if(resetPosition) {
+                audioElement.currentTime = 0;
+            }
+            setAudioButtonState(false);
+            updateAudioProgressUI();
+        }
+
+        function setAudioButtonState(isPlaying) {
+            if(!audioPlayIconPlay || !audioPlayIconPause) return;
+            if(isPlaying) {
+                audioPlayIconPlay.classList.add('hidden');
+                audioPlayIconPause.classList.remove('hidden');
+            } else {
+                audioPlayIconPause.classList.add('hidden');
+                audioPlayIconPlay.classList.remove('hidden');
+            }
+        }
+
+        audioElement.addEventListener('timeupdate', updateAudioProgressUI);
+        audioElement.addEventListener('loadedmetadata', updateAudioProgressUI);
+        audioElement.addEventListener('play', () => setAudioButtonState(true));
+        audioElement.addEventListener('pause', () => setAudioButtonState(false));
+        audioElement.addEventListener('ended', () => {
+            audioElement.currentTime = audioElement.duration || 0;
+            stopAudioPreview(false);
+        });
+
+        function toggleModalAudioPreview() {
+            if(!modalAudioElement || !modalAudioElement.src) {
+                alert('No audio available for this analysis.');
+                return;
+            }
+            if(modalAudioElement.paused) {
+                modalAudioElement.play().catch(() => alert('Unable to play audio.'));
+            } else {
+                modalAudioElement.pause();
+            }
+        }
+
+        function updateModalAudioProgressUI() {
+            if(!modalAudioElement || !modalAudioProgressBar) return;
+            let duration = modalAudioElement.duration;
+            if(!isFinite(duration)) duration = 0;
+            const current = modalAudioElement.currentTime || 0;
+            const percent = duration ? (current / duration) * 100 : 0;
+            modalAudioProgressBar.style.width = `${Math.min(percent, 100)}%`;
+            if(modalAudioProgressTime) modalAudioProgressTime.innerText = formatTime(current);
+            if(modalAudioDuration) modalAudioDuration.innerText = duration ? formatTime(duration) : '--:--';
+        }
+
+        function setModalAudioButtonState(isPlaying) {
+            if(!modalAudioPlayIcon || !modalAudioPauseIcon) return;
+            if(isPlaying) {
+                modalAudioPlayIcon.classList.add('hidden');
+                modalAudioPauseIcon.classList.remove('hidden');
+            } else {
+                modalAudioPauseIcon.classList.add('hidden');
+                modalAudioPlayIcon.classList.remove('hidden');
+            }
+        }
+
+        if(modalAudioElement) {
+            modalAudioElement.addEventListener('timeupdate', updateModalAudioProgressUI);
+            modalAudioElement.addEventListener('loadedmetadata', updateModalAudioProgressUI);
+            modalAudioElement.addEventListener('play', () => setModalAudioButtonState(true));
+            modalAudioElement.addEventListener('pause', () => setModalAudioButtonState(false));
+            modalAudioElement.addEventListener('ended', () => {
+                modalAudioElement.currentTime = modalAudioElement.duration || 0;
+                setModalAudioButtonState(false);
+                updateModalAudioProgressUI();
+            });
+        }
+
+        // Recording Logic
+        let recordInterval;
+        let currentAudioLabel = '';
+
+        async function startRecording() {
+            document.getElementById('record-ui-review').classList.add('hidden');
+            document.getElementById('record-ui-analyzing').classList.add('hidden');
+            document.getElementById('record-ui-idle').classList.add('hidden');
+            document.getElementById('record-ui-active').classList.remove('hidden');
+            resetReviewState();
+            currentAudioLabel = 'Consultation recording';
+
+            if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined') {
+                alert('Recording is not supported in this browser. Please upload an audio file instead.');
+                document.getElementById('record-ui-active').classList.add('hidden');
+                document.getElementById('record-ui-idle').classList.remove('hidden');
+                return;
+            }
+
+            try {
+                mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const preferredMimeTypes = [
+                    'audio/webm;codecs=opus',
+                    'audio/webm',
+                    'audio/mp4;codecs=mp4a.40.2',
+                    'audio/mp4',
+                    'audio/ogg',
+                ];
+                let selectedMime = '';
+                if(window.MediaRecorder && MediaRecorder.isTypeSupported) {
+                    selectedMime = preferredMimeTypes.find(type => MediaRecorder.isTypeSupported(type)) || '';
+                }
+                const recorderOptions = selectedMime ? { mimeType: selectedMime } : undefined;
+                recordingMimeType = selectedMime || 'audio/webm';
+                mediaRecorder = new MediaRecorder(mediaStream, recorderOptions);
+                recordedChunks = [];
+                mediaRecorder.ondataavailable = e => {
+                    if(e.data.size > 0) recordedChunks.push(e.data);
+                };
+                mediaRecorder.onstop = () => {
+                    stopSpectrogram();
+                    if(mediaStream) {
+                        mediaStream.getTracks().forEach(track => track.stop());
+                        mediaStream = null;
+                    }
+                    const chunks = recordedChunks.slice();
+                    mediaRecorder = null;
+                    recordedChunks = [];
+                    if(chunks.length) {
+                        const blob = new Blob(chunks, { type: recordingMimeType || 'audio/webm' });
+                        applyAudioSource(blob, 'Captured audio', 'Ready for analysis');
+                    } else {
+                        showReviewSection('Captured audio', 'No audio captured');
+                    }
+                };
+                mediaRecorder.start();
+                beginSpectrogram(mediaStream);
+                mediaRecorder.onerror = event => {
+                    console.error('MediaRecorder error', event.error);
+                    alert('Recording error. Please try again or upload your audio file.');
+                    stopRecording();
+                };
+            } catch (err) {
+                alert('Microphone access is required to record audio.');
+                document.getElementById('record-ui-active').classList.add('hidden');
+                document.getElementById('record-ui-idle').classList.remove('hidden');
+                stopSpectrogram();
+                return;
+            }
+
+            let seconds = 0;
+            const timerEl = document.getElementById('record-timer');
+            timerEl.innerText = '00:00';
+            recordInterval = setInterval(() => {
+                seconds++;
+                const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+                const s = (seconds % 60).toString().padStart(2, '0');
+                timerEl.innerText = `${m}:${s}`;
+            }, 1000);
+        }
+
+        function stopRecording() {
+            clearInterval(recordInterval);
+            document.getElementById('record-ui-active').classList.add('hidden');
+            stopSpectrogram();
+            if(mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            } else if(audioElement.src) {
+                showReviewSection(currentAudioLabel || 'Consultation audio', 'Ready for analysis');
+            } else {
+                document.getElementById('record-ui-idle').classList.remove('hidden');
+            }
+        }
+
+        function triggerAudioUpload() {
+            document.getElementById('audio-upload-input').click();
+        }
+
+        function handleAudioUpload(event) {
+            const file = event.target.files[0];
+            if(!file) return;
+            const label = file.name || 'Uploaded audio';
+            const size = file.size ? `${(file.size / (1024 * 1024)).toFixed(2)} MB` : 'Ready for analysis';
+            stopAudioPreview(true);
+            applyAudioSource(file, label, `${size} • Ready for analysis`);
+            event.target.value = '';
+        }
+
+        function applyAudioSource(fileOrBlob, label, status) {
+            stopSpectrogram();
+            stopAudioPreview(true);
+            let preparedFile = fileOrBlob instanceof File ? fileOrBlob : null;
+            if(!preparedFile) {
+                const baseName = (label || 'consultation_audio').replace(/\s+/g, '_').toLowerCase();
+                const usesMp4 = (recordingMimeType && recordingMimeType.includes('mp4'));
+                const extension = usesMp4 ? '.m4a' : '.webm';
+                const fileName = baseName.endsWith(extension) ? baseName : `${baseName}${extension}`;
+                preparedFile = new File([fileOrBlob], fileName, { type: fileOrBlob.type || recordingMimeType || 'audio/webm' });
+            }
+            currentAudioFile = preparedFile;
+            if(audioObjectURL) {
+                URL.revokeObjectURL(audioObjectURL);
+            }
+            audioObjectURL = URL.createObjectURL(preparedFile);
+            audioElement.src = audioObjectURL;
+            audioElement.currentTime = 0;
+            audioElement.load();
+            showReviewSection(label, status);
+        }
+
+        function showReviewSection(label, status) {
+            currentAudioLabel = label || 'Consultation audio';
+            stopAudioPreview(true);
+            clearAnalysisResults();
+            if(analysisError) {
+                analysisError.classList.add('hidden');
+                analysisError.innerText = '';
+            }
+            document.getElementById('review-audio-label').innerText = currentAudioLabel;
+            document.getElementById('review-audio-status').innerText = status || 'Ready for analysis';
+            document.getElementById('record-ui-idle').classList.add('hidden');
+            document.getElementById('record-ui-active').classList.add('hidden');
+            document.getElementById('record-ui-analyzing').classList.add('hidden');
+            document.getElementById('record-ui-review').classList.remove('hidden');
+        }
+
+        function triggerPhotoUpload() {
+            document.getElementById('prescription-upload-input').click();
+        }
+
+        function handlePrescriptionUpload(event) {
+            const file = event.target.files[0];
+            if(!file) return;
+            currentPrescriptionFile = file;
+            if(prescriptionPreviewURL) {
+                URL.revokeObjectURL(prescriptionPreviewURL);
+            }
+            prescriptionPreviewURL = URL.createObjectURL(file);
+            prescriptionPreview.src = prescriptionPreviewURL;
+            prescriptionPreview.classList.remove('hidden');
+            prescriptionStatus.innerText = file.name;
+            if(prescriptionCameraIcon) {
+                prescriptionCameraIcon.classList.add('hidden');
+            }
+            event.target.value = '';
+        }
+
+        function cancelReview() {
+            stopAudioPreview(true);
+            document.getElementById('record-ui-review').classList.add('hidden');
+            document.getElementById('record-ui-idle').classList.remove('hidden');
+            resetReviewState();
+        }
+
+        async function startAnalysis() {
+            if(!currentAudioFile) {
+                alert('Please record or upload the consultation audio before analyzing.');
+                return;
+            }
+            stopAudioPreview(false);
+            clearAnalysisResults();
+            if(analysisError) {
+                analysisError.classList.add('hidden');
+                analysisError.innerText = '';
+            }
+            document.getElementById('record-ui-review').classList.add('hidden');
+            document.getElementById('record-ui-analyzing').classList.remove('hidden');
+
+            const formData = new FormData();
+            formData.append('audio_file', currentAudioFile, currentAudioFile.name || 'consultation.webm');
+            if(currentPrescriptionFile) {
+                formData.append('prescription_photo', currentPrescriptionFile, currentPrescriptionFile.name || 'prescription.jpg');
+            }
+            formData.append('notes', notesInput ? notesInput.value : '');
+            formData.append('patient_id', getPatientId());
+            formData.append('patient_name', patientProfile?.name || '');
+            const captureDoctorValue = captureDoctorInput ? captureDoctorInput.value.trim() : '';
+            const doctorName = captureDoctorValue || getPrimaryDoctorName();
+            if(!doctorName) {
+                document.getElementById('record-ui-analyzing').classList.add('hidden');
+                document.getElementById('record-ui-review').classList.remove('hidden');
+                alert('Please specify the doctor or specialist for this visit.');
+                return;
+            }
+            formData.append('doctor_name', doctorName);
+
+            try {
+                const response = await fetch('/analyze', {
+                    method: 'POST',
+                    body: formData
+                });
+                let payload = {};
+                let fallbackText = '';
+                try {
+                    payload = await response.json();
+                } catch {
+                    fallbackText = await response.text();
+                }
+                if(!response.ok) {
+                    const message = payload.detail || fallbackText || 'Mistral was unable to analyze the visit. Please try again.';
+                    throw new Error(message);
+                }
+                if(!payload.analysis) {
+                    throw new Error('Response did not include analysis details.');
+                }
+                renderAnalysisResults(payload.analysis);
+                fetchAnalyses();
+                fetchOverview();
+                document.getElementById('record-ui-analyzing').classList.add('hidden');
+                document.getElementById('record-ui-review').classList.remove('hidden');
+            } catch (error) {
+                document.getElementById('record-ui-analyzing').classList.add('hidden');
+                document.getElementById('record-ui-review').classList.remove('hidden');
+                if(analysisError) {
+                    analysisError.innerText = error.message || 'Unable to analyze visit.';
+                    analysisError.classList.remove('hidden');
+                } else {
+                    alert(error.message || 'Unable to analyze visit.');
+                }
+            }
+        }
+
+        function resetReviewState() {
+            document.getElementById('review-audio-label').innerText = 'Recording ready';
+            document.getElementById('review-audio-status').innerText = 'Ready for analysis';
+            prescriptionStatus.innerText = 'No photo added yet';
+            currentAudioFile = null;
+            currentPrescriptionFile = null;
+            stopSpectrogram();
+            if(notesInput) notesInput.value = '';
+            if(analysisError) {
+                analysisError.classList.add('hidden');
+                analysisError.innerText = '';
+            }
+            clearAnalysisResults();
+            if(audioObjectURL) {
+                URL.revokeObjectURL(audioObjectURL);
+                audioObjectURL = '';
+            }
+            audioElement.src = '';
+            audioElement.load();
+            if(prescriptionPreviewURL) {
+                URL.revokeObjectURL(prescriptionPreviewURL);
+                prescriptionPreviewURL = '';
+            }
+            prescriptionPreview.src = '';
+            prescriptionPreview.classList.add('hidden');
+            stopAudioPreview(true);
+            audioDurationLabel.innerText = '--:--';
+            audioProgressBar.style.width = '0%';
+            audioProgressTime.innerText = '00:00';
+            setAudioButtonState(false);
+            if(prescriptionCameraIcon) {
+                prescriptionCameraIcon.classList.remove('hidden');
+            }
+            prefillCaptureDoctor(true);
+        }
+
+        function resetMedicationVerification(keepIdleVisible = false) {
+            currentVerificationFile = null;
+            if(verificationPreviewURL) {
+                URL.revokeObjectURL(verificationPreviewURL);
+                verificationPreviewURL = '';
+            }
+            if(verifyPreview) {
+                verifyPreview.src = '';
+                verifyPreview.classList.add('hidden');
+            }
+            verifyPlaceholder?.classList.remove('hidden');
+            if(verifySubmitBtn) verifySubmitBtn.disabled = true;
+            verifyError?.classList.add('hidden');
+            verifyLoading?.classList.add('hidden');
+            verifyResult?.classList.add('hidden');
+            if(keepIdleVisible) {
+                verifyIdle?.classList.remove('hidden');
+                return;
+            }
+            verifyIdle?.classList.remove('hidden');
+        }
+
+        function triggerVerifyCapture(useCamera) {
+            if(!verifyUploadInput) return;
+            if(useCamera) {
+                verifyUploadInput.setAttribute('capture', 'environment');
+            } else {
+                verifyUploadInput.removeAttribute('capture');
+            }
+            verifyUploadInput.click();
+        }
+
+        function handleVerificationUpload(event) {
+            const file = event.target.files[0];
+            if(!file) return;
+            currentVerificationFile = file;
+            if(verificationPreviewURL) {
+                URL.revokeObjectURL(verificationPreviewURL);
+            }
+            verificationPreviewURL = URL.createObjectURL(file);
+            if(verifyPreview) {
+                verifyPreview.src = verificationPreviewURL;
+                verifyPreview.classList.remove('hidden');
+            }
+            verifyPlaceholder?.classList.add('hidden');
+            if(verifySubmitBtn) verifySubmitBtn.disabled = false;
+            verifyError?.classList.add('hidden');
+            event.target.value = '';
+        }
+
+        async function submitMedicationVerification() {
+            if(!currentVerificationFile) {
+                if(verifyError) {
+                    verifyError.innerText = 'Please add a photo of the medication first.';
+                    verifyError.classList.remove('hidden');
+                } else {
+                    alert('Please add a photo of the medication first.');
+                }
+                return;
+            }
+            verifyError?.classList.add('hidden');
+            verifyIdle?.classList.add('hidden');
+            verifyResult?.classList.add('hidden');
+            verifyLoading?.classList.remove('hidden');
+            const formData = new FormData();
+            formData.append('photo', currentVerificationFile, currentVerificationFile.name || 'medication.jpg');
+            formData.append('patient_id', getPatientId());
+            try {
+                const response = await fetch('/verify-medication', { method: 'POST', body: formData });
+                let payload = {};
+                try {
+                    payload = await response.json();
+                } catch {
+                    // ignore
+                }
+                if(!response.ok) {
+                    const message = payload.detail || 'Unable to verify medication.';
+                    throw new Error(message);
+                }
+                displayVerificationResult(payload.verification || {});
+            } catch (error) {
+                verifyLoading?.classList.add('hidden');
+                verifyIdle?.classList.remove('hidden');
+                if(verifyError) {
+                    verifyError.innerText = error.message || 'Unable to verify medication.';
+                    verifyError.classList.remove('hidden');
+                } else {
+                    alert(error.message || 'Unable to verify medication.');
+                }
+            }
+        }
+
+        function displayVerificationResult(verification) {
+            verifyLoading?.classList.add('hidden');
+            verifyResult?.classList.remove('hidden');
+            const match = !!verification.match;
+            if(verifyResultTag) {
+                verifyResultTag.className = `${verifyResultTagBase} ${match ? 'bg-green-50 text-green-700' : 'bg-rose-50 text-rose-700'}`;
+                verifyResultTag.innerText = match ? 'MATCHED' : 'WARNING';
+            }
+            if(verifyResultTitle) {
+                verifyResultTitle.innerText = match ? 'Medication matches your prescription' : 'Possible mismatch detected';
+            }
+            if(verifyResultMessage) {
+                verifyResultMessage.innerText =
+                    verification.message ||
+                    (match
+                        ? 'This medication appears to match your active prescription.'
+                        : 'This medication may not match any active prescription.');
+            }
+            if(verifyResultRecommendation) {
+                verifyResultRecommendation.innerText =
+                    verification.recommendation ||
+                    (match
+                        ? 'You can use the medication as prescribed.'
+                        : 'Contact your pharmacist or doctor before using this medication.');
+            }
+        }
+
+        async function fetchAnalyses() {
+            try {
+                const response = await fetch(`/analyses?patient_id=${encodeURIComponent(getPatientId())}`);
+                const payload = await response.json();
+                analysesData = payload.analyses || [];
+                renderHistoryCards(analysesData);
+            } catch (error) {
+                console.error('Unable to load analyses', error);
+            }
+        }
+
+        async function fetchOverview() {
+            try {
+                const response = await fetch(`/overview?patient_id=${encodeURIComponent(getPatientId())}`);
+                const payload = await response.json();
+                overviewData = payload;
+                const plan = payload?.overview?.plan || [];
+                renderTreatmentTimeline(plan);
+                renderPlanningModal(plan);
+                renderSafetyAlerts(payload?.overview?.safety_alerts || []);
+                const shouldRenderQuestions = completeBlock.classList.contains('hidden');
+                updateCheckInQuestions(payload?.checkin_questions || [], shouldRenderQuestions);
+            } catch (error) {
+                console.error('Unable to load overview', error);
+            }
+        }
+
+        function renderHistoryCards(list) {
+            if(!historyListEl) return;
+            historyListEl.innerHTML = '';
+            if(!list.length) {
+                historyEmptyEl?.classList.remove('hidden');
+                return;
+            }
+            historyEmptyEl?.classList.add('hidden');
+            list.forEach(record => {
+                const card = document.createElement('div');
+                card.className = 'bg-white rounded-3xl p-5 shadow-soft border border-slate-100 hover:border-brand-200 transition cursor-pointer';
+                const tags = (record.sections || []).slice(0,2).map(section => `
+                    <span class="text-xs font-medium bg-slate-50 text-slate-600 px-2 py-1 rounded-md border border-slate-100">${escapeHtml(section.title || '')}</span>
+                `).join('');
+                const status = (record.status || 'in_progress').toLowerCase();
+                const statusLabel = status === 'completed' ? 'Completed' : 'In progress';
+                const statusClasses = status === 'completed' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-amber-50 text-amber-600 border border-amber-100';
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-3">
+                        <div>
+                            <p class="text-xs uppercase tracking-wider text-brand-500 font-semibold">Consultation</p>
+                            <h3 class="font-bold text-slate-900">${escapeHtml(record.title || 'Visit')}</h3>
+                            <p class="text-xs text-slate-400">${formatDate(record.created_at)}</p>
+                        </div>
+                        <div class="flex flex-col gap-2 items-end">
+                            <span class="text-xs font-semibold bg-slate-100 text-slate-600 px-3 py-1 rounded-full">${escapeHtml(record.doctor_name || 'Doctor')}</span>
+                            <span class="text-[10px] font-semibold px-2 py-1 rounded-full ${statusClasses}">${statusLabel}</span>
+                        </div>
+                    </div>
+                    <p class="text-sm text-slate-600 mb-3">${escapeHtml(record.summary || 'No summary provided.')}</p>
+                    <div class="flex flex-wrap gap-2">${tags}</div>
+                `;
+                card.addEventListener('click', () => showAnalysisModal(record));
+                historyListEl.appendChild(card);
+            });
+            lucide.createIcons();
+        }
+
+        function showAnalysisModal(record) {
+            document.getElementById('analysis-modal-title').innerText = record.title || 'Consultation';
+            document.getElementById('analysis-modal-date').innerText = formatDate(record.created_at);
+            document.getElementById('analysis-modal-doctor').innerText = record.doctor_name || '—';
+            const notesEl = document.getElementById('analysis-modal-notes');
+            if(record.notes) {
+                notesEl.innerText = record.notes;
+                notesEl.classList.remove('italic', 'text-slate-400');
+            } else {
+                notesEl.innerText = 'No notes provided.';
+                notesEl.classList.add('italic', 'text-slate-400');
+            }
+            const audioEl = document.getElementById('analysis-modal-audio');
+            const audioMissing = document.getElementById('analysis-modal-audio-missing');
+            if(record.audio?.url) {
+                audioEl.src = record.audio.url;
+                audioEl.classList.remove('hidden');
+                audioMissing.classList.add('hidden');
+                modalAudioPlayer.classList.remove('hidden');
+                setModalAudioButtonState(false);
+                modalAudioElement.currentTime = 0;
+                updateModalAudioProgressUI();
+            } else {
+                audioEl.classList.add('hidden');
+                modalAudioPlayer.classList.add('hidden');
+                audioMissing.classList.remove('hidden');
+            }
+            const prescriptionBlock = document.getElementById('analysis-modal-prescription-block');
+            const prescriptionImg = document.getElementById('analysis-modal-prescription');
+            if(record.prescription?.url) {
+                prescriptionImg.src = record.prescription.url;
+                prescriptionBlock.classList.remove('hidden');
+            } else {
+                prescriptionBlock.classList.add('hidden');
+            }
+            document.getElementById('analysis-modal-summary').innerText = record.summary || 'No summary available.';
+            const accordions = document.getElementById('analysis-modal-accordions');
+            let accordionMarkup = createAccordionBlock(
+                `modal-transcription-${record.id}`,
+                'audio-lines',
+                'Conversation transcription',
+                `<div class="text-sm text-slate-700 whitespace-pre-line leading-relaxed">${escapeHtml(record.transcription || 'No transcript available.')}</div>`,
+                true
+            );
+            (record.sections || []).forEach((section, idx) => {
+                const items = Array.isArray(section.items) && section.items.length ? section.items : ['No data provided.'];
+                let body = '<ul class="space-y-2">';
+                body += items.map(item => `<li class="flex gap-2 text-slate-700 text-sm"><span class="w-1.5 h-1.5 rounded-full bg-brand-400 mt-2"></span><span>${escapeHtml(item)}</span></li>`).join('');
+                body += '</ul>';
+                accordionMarkup += createAccordionBlock(
+                    `modal-section-${record.id}-${idx}`,
+                    section.icon || 'info',
+                    section.title || `Section ${idx + 1}`,
+                    body,
+                    false
+                );
+            });
+            accordions.innerHTML = accordionMarkup;
+            lucide.createIcons();
+            openModal('modal-analysis-detail');
+        }
+
+        function formatDate(dateString) {
+            if(!dateString) return 'Unknown date';
+            const date = new Date(dateString);
+            if(Number.isNaN(date.getTime())) return dateString;
+            return date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+        }
+
+        function renderAnalysisResults(analysis) {
+            if(!analysisResultsContainer || !analysisResultsBody) return;
+            const transcription = analysis?.transcription || 'No transcript available.';
+            const summaryText = analysis?.summary || 'Mistral did not provide a summary.';
+            const sections = Array.isArray(analysis?.sections) && analysis.sections.length ? analysis.sections : [{
+                title: 'Analysis summary',
+                icon: 'info',
+                items: ['No additional insights were provided.']
+            }];
+
+            let content = createAccordionBlock(
+                'transcription',
+                'audio-lines',
+                'Conversation transcription',
+                `<div class="text-sm text-slate-700 whitespace-pre-line leading-relaxed">${escapeHtml(transcription)}</div>`,
+                true
+            );
+
+            sections.forEach((section, index) => {
+                const items = Array.isArray(section.items) && section.items.length ? section.items : ['No data provided.'];
+                let body = '';
+                if(section.summary) {
+                    body += `<p class="text-sm text-slate-500">${escapeHtml(section.summary)}</p>`;
+                }
+                body += '<ul class="space-y-2">';
+                body += items.map(item => `<li class="flex gap-2 text-slate-700 text-sm"><span class="w-1.5 h-1.5 rounded-full bg-brand-400 mt-2"></span><span>${escapeHtml(item)}</span></li>`).join('');
+                body += '</ul>';
+                content += createAccordionBlock(`section-${index}`, section.icon || 'info', section.title || `Section ${index + 1}`, body, false);
+            });
+
+            analysisSummary.innerText = summaryText;
+            analysisResultsBody.innerHTML = content;
+            analysisResultsContainer.classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function createAccordionBlock(id, icon, title, body, open) {
+            return `
+                <details class="group border border-slate-100 rounded-2xl p-4 bg-slate-50/40" ${open ? 'open' : ''}>
+                    <summary class="flex items-center justify-between cursor-pointer text-sm font-semibold text-slate-800">
+                        <span class="flex items-center gap-2">
+                            <i data-lucide="${icon || 'info'}" class="w-4 h-4 text-brand-500"></i>
+                            ${escapeHtml(title || 'Section')}
+                        </span>
+                        <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400 transition group-open:rotate-180"></i>
+                    </summary>
+                    <div class="mt-4 space-y-3 text-sm text-slate-600">
+                        ${body}
+                    </div>
+                </details>
+            `;
+        }
+
+        function escapeHtml(value) {
+            if(value === undefined || value === null) return '';
+            return String(value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        // Modals Logic
+        function openModal(id) {
+            document.getElementById(id).classList.add('active');
+            if(id === 'modal-scan') {
+                resetMedicationVerification();
+            }
+        }
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+            if(id === 'modal-scan') {
+                resetMedicationVerification();
+            }
+            if(id === 'modal-analysis-detail' && modalAudioElement) {
+                modalAudioElement.pause();
+                modalAudioElement.currentTime = 0;
+                setModalAudioButtonState(false);
+                updateModalAudioProgressUI();
+            }
+        }
+
+        function loadPatientProfile() {
+            try {
+                const stored = localStorage.getItem(PROFILE_STORAGE_KEY);
+                if(stored) return JSON.parse(stored);
+            } catch (error) {
+                console.warn('Unable to load profile', error);
+            }
+            return null;
+        }
+
+        function savePatientProfile(profile) {
+            try {
+                localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profile));
+            } catch (error) {
+                console.warn('Unable to save profile', error);
+            }
+        }
+
+        function generatePatientId() {
+            const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+            const timestamp = Date.now().toString(36).slice(-4).toUpperCase();
+            return `#MED-${timestamp}${random}`;
+        }
+
+        function initialsFromName(name) {
+            if(!name) return '--';
+            return name.split(' ').filter(Boolean).map(part => part[0].toUpperCase()).slice(0,2).join('');
+        }
+
+        function firstName(value) {
+            if(!value) return '';
+            return value.trim().split(' ').filter(Boolean)[0] || value;
+        }
+
+        function getPrimaryDoctorName() {
+            return (patientProfile?.doctor || '').trim();
+        }
+
+        function prefillCaptureDoctor(force = false) {
+            if(!captureDoctorInput) return;
+            const primaryDoctor = getPrimaryDoctorName();
+            const shouldPrefill = force || !captureDoctorEdited || !captureDoctorInput.value.trim();
+            if(shouldPrefill) {
+                captureDoctorInput.value = primaryDoctor;
+                captureDoctorEdited = false;
+            }
+        }
+
+        function renderPatientProfile(profile) {
+            if(!profile) return;
+            profileNameEl.innerText = profile.name || 'Patient name';
+            profileIdEl.innerText = `Patient ID: ${profile.patient_id || '#MED-0000'}`;
+            profileInitialsEl.innerText = initialsFromName(profile.name);
+            if(overviewGreetingNameEl) {
+                overviewGreetingNameEl.innerText = firstName(profile.name) || 'there';
+            }
+            profileWeightEl.innerText = profile.weight ? `${profile.weight} kg` : '-';
+            profileHeightEl.innerText = profile.height ? `${profile.height} m` : '-';
+            profileBloodEl.innerText = profile.blood || '-';
+            if(profileAllergiesEl) {
+                profileAllergiesEl.innerHTML = '';
+                const allergies = profile.allergies && profile.allergies.length ? profile.allergies : [];
+                if(!allergies.length) {
+                    profileAllergiesEl.innerHTML = '<span class="text-sm text-slate-400">None recorded.</span>';
+                } else {
+                    allergies.forEach(item => {
+                        const pill = document.createElement('span');
+                        pill.className = 'bg-rose-50 text-rose-700 px-3 py-1 rounded-full text-sm font-semibold border border-rose-100';
+                        pill.innerText = item;
+                        profileAllergiesEl.appendChild(pill);
+                    });
+                }
+            }
+            if(profileDoctorEl) {
+                profileDoctorEl.innerText = profile.doctor || 'Not set yet';
+            }
+            prefillCaptureDoctor(false);
+        }
+
+        function getPatientId() {
+            if(patientProfile?.patient_id) return patientProfile.patient_id;
+            const stored = loadPatientProfile();
+            if(stored?.patient_id) {
+                patientProfile = stored;
+                return stored.patient_id;
+            }
+            return DEFAULT_PATIENT_ID;
+        }
+
+        function beginSpectrogram(stream) {
+            if(!AudioContextClass || !spectroBars.length) return;
+            stopSpectrogram();
+            try {
+                audioContextInstance = new AudioContextClass();
+                if(audioContextInstance.state === 'suspended' && audioContextInstance.resume) {
+                    audioContextInstance.resume();
+                }
+                spectroSourceNode = audioContextInstance.createMediaStreamSource(stream);
+                spectroAnalyser = audioContextInstance.createAnalyser();
+                spectroAnalyser.fftSize = 1024;
+                spectroAnalyser.smoothingTimeConstant = 0.75;
+                spectroSourceNode.connect(spectroAnalyser);
+                const freqArray = new Uint8Array(spectroAnalyser.frequencyBinCount);
+                const timeArray = new Uint8Array(spectroAnalyser.fftSize);
+                const barCount = spectroBars.length;
+                spectroHistory = new Array(barCount).fill(0.3);
+                const freqBucket = Math.max(1, Math.floor(freqArray.length / barCount));
+                const timeBucket = Math.max(1, Math.floor(timeArray.length / barCount));
+
+                const animate = () => {
+                    spectroAnimationFrame = requestAnimationFrame(animate);
+                    spectroAnalyser.getByteFrequencyData(freqArray);
+                    spectroAnalyser.getByteTimeDomainData(timeArray);
+                    const now = performance.now();
+                    for(let i = 0; i < barCount; i++) {
+                        const freqStart = i * freqBucket;
+                        const freqEnd = Math.min(freqArray.length, freqStart + freqBucket);
+                        let freqSum = 0;
+                        for(let j = freqStart; j < freqEnd; j++) {
+                            freqSum += freqArray[j] || 0;
+                        }
+                        const freqAvg = freqSum / ((freqEnd - freqStart) || 1);
+
+                        const timeStart = i * timeBucket;
+                        const timeEnd = Math.min(timeArray.length, timeStart + timeBucket);
+                        let timeSum = 0;
+                        for(let j = timeStart; j < timeEnd; j++) {
+                            timeSum += Math.abs((timeArray[j] || 0) - 128);
+                        }
+                        const timeAvg = timeSum / ((timeEnd - timeStart) || 1);
+
+                        let normalized = (freqAvg / 255) * 0.65 + (timeAvg / 128) * 0.35;
+                        const wave = Math.sin((now / 200) + i * 0.6) * 0.05;
+                        const jitter = (Math.random() - 0.5) * 0.04;
+                        normalized = Math.max(0, Math.min(1, normalized + wave + jitter));
+                        const smoothed = spectroHistory[i] * 0.5 + normalized * 0.5;
+                        spectroHistory[i] = smoothed;
+                        const percent = 12 + smoothed * 80;
+                        spectroBars[i].style.setProperty('--bar-height', `${percent}%`);
+                        spectroBars[i].style.opacity = 0.35 + smoothed * 0.65;
+                    }
+                };
+                animate();
+            } catch (error) {
+                console.warn('Unable to visualize recording', error);
+                stopSpectrogram();
+            }
+        }
+
+        function stopSpectrogram() {
+            if(spectroAnimationFrame) {
+                cancelAnimationFrame(spectroAnimationFrame);
+                spectroAnimationFrame = null;
+            }
+            if(spectroSourceNode && spectroSourceNode.disconnect) {
+                spectroSourceNode.disconnect();
+            }
+            spectroSourceNode = null;
+            if(spectroAnalyser && spectroAnalyser.disconnect) {
+                spectroAnalyser.disconnect();
+            }
+            spectroAnalyser = null;
+            if(audioContextInstance) {
+                audioContextInstance.close().catch(() => {});
+                audioContextInstance = null;
+            }
+            spectroBars.forEach(bar => bar.style.setProperty('--bar-height', '45%'));
+        }
+
+        function collectProfileFromForm(prefix) {
+            const name = document.getElementById(`${prefix}-name`).value.trim();
+            const idField = document.getElementById(`${prefix}-id`);
+            let patientId = idField ? idField.value.trim() : '';
+            const weight = document.getElementById(`${prefix}-weight`).value.trim();
+            const height = document.getElementById(`${prefix}-height`).value.trim();
+            const blood = document.getElementById(`${prefix}-blood`).value.trim();
+            const allergiesRaw = document.getElementById(`${prefix}-allergies`).value;
+            const allergies = allergiesRaw ? allergiesRaw.split(',').map(item => item.trim()).filter(Boolean) : [];
+            const doctorField = document.getElementById(`${prefix}-doctor`);
+            const doctor = doctorField ? doctorField.value.trim() : (patientProfile?.doctor || '');
+            if(!patientId) {
+                patientId = patientProfile?.patient_id || generatePatientId();
+            }
+            return { name, patient_id: patientId, weight, height, blood, allergies, doctor };
+        }
+
+        function showOnboardingIfNeeded() {
+            patientProfile = loadPatientProfile();
+            if(patientProfile) {
+                onboardingOverlay?.classList.add('hidden');
+                renderPatientProfile(patientProfile);
+            } else {
+                onboardingOverlay?.classList.remove('hidden');
+                if(overviewGreetingNameEl) overviewGreetingNameEl.innerText = 'there';
+            }
+        }
+
+        function openProfileSettings() {
+            if(!patientProfile) {
+                onboardingOverlay?.classList.remove('hidden');
+                return;
+            }
+            document.getElementById('settings-name').value = patientProfile.name || '';
+            document.getElementById('settings-id').value = patientProfile.patient_id || '';
+            document.getElementById('settings-weight').value = patientProfile.weight || '';
+            document.getElementById('settings-height').value = patientProfile.height || '';
+            document.getElementById('settings-blood').value = patientProfile.blood || '';
+            document.getElementById('settings-allergies').value = (patientProfile.allergies || []).join(', ');
+            document.getElementById('settings-doctor').value = patientProfile.doctor || '';
+            openModal('modal-profile-settings');
+        }
+
+        function medSlug(value) {
+            return (value || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+        }
+
+        // Medication Details Data Mock
+        const medData = {
+            'amoxicillin-1g': {
+                title: 'Amoxicillin 1g',
+                type: 'Antibiotic',
+                dose: '1 tablet morning and 1 tablet evening (2g/day total).',
+                instructions: 'Preferably take with a meal to avoid stomach aches.',
+                purpose: 'Eliminates the bacteria behind your throat infection. Finish the full treatment.'
+            },
+            'doliprane-1000mg': {
+                title: 'Doliprane 1000mg',
+                type: 'Pain & fever relief',
+                dose: '1 tablet if pain or fever (max 3 per day).',
+                instructions: 'Leave at least 6 hours between each dose. Dissolve in a glass of water.',
+                purpose: 'Relieves headaches and reduces fever.'
+            }
+        };
+        medData['amoxicilline'] = medData['amoxicillin-1g'];
+        medData['amoxicillin'] = medData['amoxicillin-1g'];
+        medData['doliprane'] = medData['doliprane-1000mg'];
+
+        function lookupMedicationDefaults(name) {
+            if(!name) return null;
+            const slug = medSlug(name);
+            return medData[slug] || null;
+        }
+
+        function populateMedicationModal(data) {
+            const defaults = lookupMedicationDefaults(data?.name) || {};
+            const title = data?.name || defaults.title || 'Medication';
+            const type = data?.type || defaults.type || 'Prescription drug';
+            const dose = data?.dosage || data?.dose || defaults.dose || 'Follow the instructions given by your physician.';
+            const instructions = data?.instructions || defaults.instructions || 'Take exactly as prescribed.';
+            const purpose = data?.purpose || defaults.purpose || 'Supports your current treatment plan.';
+            document.getElementById('med-title').innerText = title;
+            document.getElementById('med-subtitle').innerText = type;
+            document.getElementById('med-dose').innerText = dose;
+            document.getElementById('med-instructions').innerText = instructions;
+            document.getElementById('med-purpose').innerText = purpose;
+        }
+
+        function openPlanMedication(dayIndex, medIndex) {
+            const day = currentTreatmentPlan?.[dayIndex];
+            const med = day?.medications?.[medIndex];
+            if(!med) {
+                alert('Medication details unavailable.');
+                return;
+            }
+            populateMedicationModal(med);
+            openModal('modal-med-details');
+        }
+
+        function showMedDetails(medId) {
+            const data = medData[medId];
+            if(data) {
+                populateMedicationModal(data);
+                openModal('modal-med-details');
+            }
+        }
+
+        if(onboardingForm) {
+            onboardingForm.addEventListener('submit', (event) => {
+                event.preventDefault();
+                patientProfile = collectProfileFromForm('onboard');
+                savePatientProfile(patientProfile);
+                renderPatientProfile(patientProfile);
+                onboardingOverlay?.classList.add('hidden');
+                fetchAnalyses();
+                fetchOverview();
+            });
+        }
+
+        if(settingsForm) {
+            settingsForm.addEventListener('submit', (event) => {
+                event.preventDefault();
+                patientProfile = collectProfileFromForm('settings');
+                savePatientProfile(patientProfile);
+                renderPatientProfile(patientProfile);
+                closeModal('modal-profile-settings');
+                fetchAnalyses();
+                fetchOverview();
+            });
+        }
+
+        if(captureDoctorInput) {
+            captureDoctorInput.addEventListener('input', () => {
+                captureDoctorEdited = captureDoctorInput.value.trim().length > 0;
+            });
+        }
+
+        if(verifyUploadInput) {
+            verifyUploadInput.addEventListener('change', handleVerificationUpload);
+        }
+
+        showOnboardingIfNeeded();
+        fetchAnalyses();
+        fetchOverview();
+
+        if('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/static/sw.js').catch(err => {
+                    console.warn('Service worker registration failed', err);
+                });
+            });
+        }
+    </script>
+</body>
+</html>

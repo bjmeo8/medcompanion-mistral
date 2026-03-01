@@ -1,0 +1,27 @@
+{
+  "name": "MedCompanion",
+  "short_name": "MedCompanion",
+  "description": "Patient understanding & safety companion.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#f97316",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "/static/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/static/icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ],
+  "categories": ["health", "medical"],
+  "shortcuts": [
+    {
+      "name": "Capture visit",
+      "short_name": "Capture",
+      "url": "/#view-record"
+    },
+    {
+      "name": "History",
+      "short_name": "History",
+      "url": "/#view-history"
+    }
+  ]
+}

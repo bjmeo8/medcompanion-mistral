@@ -1,0 +1,42 @@
+# Python / FastAPI
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+.venv/
+env/
+venv/
+ENV/
+
+# FastAPI / Uvicorn artifacts
+*.log
+
+# Local IDE / editor settings
+.idea/
+.vscode/
+*.swp
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Env files / secrets
+*.env
+dev/.env
+prod/.env
+
+# Build / deploy artifacts
+dist/
+build/
+*.egg-info/
+coverage/
+.pytest_cache/
+
+# Node leftovers (just in case)
+node_modules/
+package-lock.json
+yarn.lock
+
+# Docker
+*.tar
