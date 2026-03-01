@@ -4,6 +4,14 @@ MedCompanion is a Mistral-powered companion web app/PWA that helps patients capt
 
 ---
 
+### System Architecture
+
+![MedCompanion Architecture](https://raw.githubusercontent.com/bjmeo8/medcompanion-mistral/main/docs/medcompanion-architecture.png)
+
+MedCompanion is built around Mistral multimodal AI architecture combining audio transcription, image analysis, and longitudinal reasoning...
+
+---
+
 ## Highlights
 
 - **Patient onboarding + profile management** stored locally (name, biometrics, allergies, primary doctor, generated ID).
@@ -28,14 +36,6 @@ medcompanion/
   docs/                  # Specs + architecture + Mistral notes
   requirements.txt
 ```
-
----
-
-### System Architecture
-
-![MedCompanion Architecture](https://raw.githubusercontent.com/bjmeo8/medcompanion-mistral/main/docs/medcompanion-architecture.png)
-
-MedCompanion is built around Mistral multimodal AI architecture combining audio transcription, image analysis, and longitudinal reasoning...
 
 ---
 
